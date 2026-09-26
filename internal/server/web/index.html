@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>monerod dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>monerod</h1>
+      <span id="nettype" class="badge" hidden></span>
+      <span id="restricted" class="badge muted" hidden>restricted RPC</span>
+    </div>
+    <div class="meta">
+      <span id="version"></span>
+      <span id="updated" class="muted">connecting…</span>
+    </div>
+  </header>
+
+  <main>
+    <ul id="warnings" class="warnings" hidden></ul>
+
+    <section class="grid">
+      <article class="card wide" id="card-sync">
+        <h2>Sync</h2>
+        <div class="state"><span id="state-dot" class="dot"></span><span id="state-label">—</span></div>
+        <div class="bar"><div id="sync-bar" class="fill"></div></div>
+        <dl>
+          <div><dt>Height</dt><dd id="height">—</dd></div>
+          <div><dt>Target</dt><dd id="target-height">—</dd></div>
+          <div><dt>Progress</dt><dd id="sync-percent">—</dd></div>
+        </dl>
+      </article>
+
+      <article class="card">
+        <h2>Peers</h2>
+        <dl>
+          <div><dt>Outgoing</dt><dd id="peers-out" class="big">—</dd></div>
+          <div><dt>Incoming</dt><dd id="peers-in" class="big">—</dd></div>
+        </dl>
+      </article>
+
+      <article class="card">
+        <h2>Chain</h2>
+        <dl>
+          <div><dt>Hashrate</dt><dd id="hashrate">—</dd></div>
+          <div><dt>Difficulty</dt><dd id="difficulty">—</dd></div>
+          <div><dt>Last block</dt><dd id="last-block">—</dd></div>
+        </dl>
+        <p class="hash muted" id="top-hash" title="Top block hash"></p>
+      </article>
+
+      <article class="card">
+        <h2>Mempool</h2>
+        <dl>
+          <div><dt>Transactions</dt><dd id="txpool" class="big">—</dd></div>
+        </dl>
+      </article>
+
+      <article class="card">
+        <h2>Storage</h2>
+        <dl>
+          <div><dt>Database</dt><dd id="db-size">—</dd></div>
+          <div><dt>Free space</dt><dd id="free-space">—</dd></div>
+        </dl>
+        <div class="bar"><div id="disk-bar" class="fill"></div></div>
+      </article>
+
+      <article class="card">
+        <h2>Uptime</h2>
+        <dl>
+          <div><dt>Running for</dt><dd id="uptime" class="big">—</dd></div>
+          <div><dt>Started</dt><dd id="started">—</dd></div>
+        </dl>
+      </article>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

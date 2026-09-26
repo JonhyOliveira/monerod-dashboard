@@ -2,9 +2,11 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
+	"html/template"
 	"io/fs"
 	"log"
 	"net/http"
@@ -16,6 +18,11 @@ import (
 
 //go:embed web
 var webFS embed.FS
+
+//go:embed templates/index.html
+var indexHTML string
+
+var indexTmpl = template.Must(template.New("index").Parse(indexHTML))
 
 // Daemon is the subset of the RPC client the server needs.
 type Daemon interface {
@@ -52,12 +59,27 @@ func (s *Server) Handler() http.Handler {
 		panic(err)
 	}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /{$}", s.handleIndex)
 	mux.Handle("GET /", http.FileServerFS(static))
 	mux.HandleFunc("GET /api/status", s.handleStatus)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok\n"))
 	})
 	return mux
+}
+
+// handleIndex renders the dashboard with the current status already filled
+// in, so the first paint shows data without waiting on app.js.
+func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
+	var buf bytes.Buffer
+	if err := indexTmpl.Execute(&buf, newPage(s.Status(r.Context()))); err != nil {
+		log.Printf("rendering index: %v", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(buf.Bytes())
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {

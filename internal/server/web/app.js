@@ -1,7 +1,12 @@
 "use strict";
 
+// The page arrives server-rendered (see templates/index.html). This script
+// only keeps it fresh. Formatters must match internal/server/view.go so the
+// first client render doesn't change any text. Numbers are pinned to en-US
+// for the same reason.
+
 const $ = (id) => document.getElementById(id);
-const nf = new Intl.NumberFormat();
+const nf = new Intl.NumberFormat("en-US");
 
 function fmtBytes(n) {
   if (!n) return "—";
@@ -31,7 +36,7 @@ function fmtDuration(s) {
 
 function fmtBigNumber(str) {
   if (!str) return "—";
-  try { return BigInt(str).toLocaleString(); } catch { return str; }
+  try { return BigInt(str).toLocaleString("en-US"); } catch { return str; }
 }
 
 function setText(id, v) { $(id).textContent = v; }
@@ -56,7 +61,9 @@ function renderUnreachable() {
 
 function render(s) {
   renderWarnings(s.warnings || []);
-  setText("updated", "updated " + new Date(s.fetched_at).toLocaleTimeString());
+  const updated = $("updated");
+  updated.dateTime = s.fetched_at;
+  updated.textContent = "updated " + new Date(s.fetched_at).toLocaleTimeString();
   if (!s.ok) { renderUnreachable(); return; }
 
   document.querySelector(".grid").classList.remove("stale");
@@ -105,21 +112,77 @@ function render(s) {
   setText("started", n.start_time ? new Date(n.start_time * 1000).toLocaleString() : "—");
 }
 
-let timer;
+// Refresh loop and indicator. The ring's fill is a CSS animation lasting
+// --refresh-duration; restarting it each cycle keeps it in step with the timer.
+const indicator = $("refresh");
+let refreshSeconds = 5;
+let timer, ticker, nextAt = 0, inflight = false, failed = false;
+
+function setIndicator(state) {
+  indicator.classList.remove("counting", "fetching");
+  if (state === "counting") void indicator.offsetWidth; // restart the animation
+  indicator.classList.add(state);
+  indicator.classList.toggle("error", failed);
+}
+
+function tick() {
+  const left = Math.max(0, Math.ceil((nextAt - Date.now()) / 1000));
+  const label = inflight ? "Refreshing…" : `Next refresh in ${left}s`;
+  indicator.title = label;
+  indicator.setAttribute("aria-label", label + (inflight ? "" : " (click to refresh now)"));
+  indicator.querySelector(".refresh-text").textContent = inflight ? "…" : `${left}s`;
+}
+
+function schedule() {
+  clearTimeout(timer);
+  nextAt = Date.now() + refreshSeconds * 1000;
+  timer = setTimeout(poll, refreshSeconds * 1000);
+  indicator.style.setProperty("--refresh-duration", refreshSeconds + "s");
+  setIndicator("counting");
+  tick();
+}
+
+function flashUpdated() {
+  const el = $("updated");
+  el.classList.remove("flash");
+  void el.offsetWidth;
+  el.classList.add("flash");
+}
+
 async function poll() {
-  let refresh = 5;
+  if (inflight) return;
+  inflight = true;
+  clearTimeout(timer);
+  setIndicator("fetching");
+  tick();
   try {
     const res = await fetch("api/status", { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
-    refresh = s.refresh_seconds || refresh;
+    refreshSeconds = s.refresh_seconds || refreshSeconds;
     render(s);
+    failed = false;
+    flashUpdated();
   } catch (err) {
+    failed = true;
     renderUnreachable();
     renderWarnings([{ level: "error", message: "Dashboard server unreachable: " + err.message }]);
+  } finally {
+    inflight = false;
+    schedule();
   }
-  clearTimeout(timer);
-  timer = setTimeout(poll, refresh * 1000);
 }
 
-poll();
+indicator.addEventListener("click", poll);
+
+// Take over from the server render: re-render from the embedded status (this
+// only localizes timestamps) and wait a full interval before the first poll.
+try {
+  const initial = JSON.parse($("initial").textContent);
+  refreshSeconds = initial.refresh_seconds || refreshSeconds;
+  render(initial);
+} catch (err) {
+  console.error("reading initial status:", err);
+}
+schedule();
+ticker = setInterval(tick, 1000);

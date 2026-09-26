@@ -4,6 +4,7 @@ package status
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 	"strings"
 	"time"
@@ -70,7 +71,7 @@ func Build(info *rpc.GetInfoResult, last *rpc.BlockHeader, now time.Time) (Node,
 		TopBlockHash:    info.TopBlockHash,
 		TxPoolSize:      info.TxPoolSize,
 		DatabaseSize:    info.DatabaseSize,
-		FreeSpace:       info.FreeSpace,
+		FreeSpace:       freeSpace(info),
 		StartTime:       info.StartTime,
 	}
 
@@ -116,6 +117,15 @@ func Build(info *rpc.GetInfoResult, last *rpc.BlockHeader, now time.Time) (Node,
 	return n, warnings(n, info)
 }
 
+// freeSpace returns the daemon's free disk space, or 0 when unknown.
+// Restricted RPC reports free_space as the maximum uint64 rather than 0.
+func freeSpace(info *rpc.GetInfoResult) uint64 {
+	if info.Restricted || info.FreeSpace == math.MaxUint64 {
+		return 0
+	}
+	return info.FreeSpace
+}
+
 // Difficulty returns the network difficulty, preferring the 128-bit
 // wide_difficulty hex string over the (possibly truncated) uint64 field.
 func Difficulty(info *rpc.GetInfoResult) *big.Int {
@@ -139,11 +149,11 @@ func warnings(n Node, info *rpc.GetInfoResult) []Warning {
 	if !info.Offline && n.OutgoingPeers == 0 {
 		add("error", "no_outgoing_peers", "No outgoing peer connections.")
 	}
-	// free_space is 0 on restricted RPC; only warn when it's reported.
-	if info.FreeSpace > 0 && !info.Restricted {
-		if info.FreeSpace < MinFreeSpace ||
-			(info.DatabaseSize > 0 && float64(info.FreeSpace) < MinFreeSpaceRatio*float64(info.DatabaseSize)) {
-			add("warn", "low_disk", fmt.Sprintf("Low free disk space: %.1f GiB left.", float64(info.FreeSpace)/(1<<30)))
+	// Only warn when free space is actually reported.
+	if free := n.FreeSpace; free > 0 {
+		if free < MinFreeSpace ||
+			(info.DatabaseSize > 0 && float64(free) < MinFreeSpaceRatio*float64(info.DatabaseSize)) {
+			add("warn", "low_disk", fmt.Sprintf("Low free disk space: %.1f GiB left.", float64(free)/(1<<30)))
 		}
 	}
 	if n.LastBlockTime > 0 && n.State == "synchronized" && time.Duration(n.LastBlockAgeS)*time.Second > MaxBlockAge {

@@ -77,6 +77,15 @@ func TestSyncing(t *testing.T) {
 	}
 }
 
+func TestRestrictedFreeSpaceHidden(t *testing.T) {
+	info := healthy()
+	info.Restricted = true
+	info.FreeSpace = math.MaxUint64 // what restricted RPC actually sends
+	if n, _ := Build(info, nil, now); n.FreeSpace != 0 {
+		t.Errorf("free space = %d, want 0 (unknown)", n.FreeSpace)
+	}
+}
+
 func TestWideDifficulty(t *testing.T) {
 	info := healthy()
 	info.Difficulty = 1                         // truncated low 64 bits
@@ -102,6 +111,7 @@ func TestWarnings(t *testing.T) {
 		{"low disk ratio", func(i *rpc.GetInfoResult) { i.FreeSpace = 12 << 30; i.DatabaseSize = 300 << 30 }, nil, []string{"low_disk"}},
 		{"restricted hides disk", func(i *rpc.GetInfoResult) { i.FreeSpace = 1; i.Restricted = true }, nil, nil},
 		{"free space unreported", func(i *rpc.GetInfoResult) { i.FreeSpace = 0 }, nil, nil},
+		{"free space hidden as max uint64", func(i *rpc.GetInfoResult) { i.FreeSpace = math.MaxUint64 }, nil, nil},
 		{"stale tip", func(i *rpc.GetInfoResult) {}, &rpc.BlockHeader{Timestamp: now.Unix() - 3600}, []string{"stale_tip"}},
 		{"stale tip ignored while syncing", func(i *rpc.GetInfoResult) { i.TargetHeight = i.Height + 100 }, &rpc.BlockHeader{Timestamp: now.Unix() - 3600}, nil},
 		{"update", func(i *rpc.GetInfoResult) { i.UpdateAvailable = true }, nil, []string{"update_available"}},

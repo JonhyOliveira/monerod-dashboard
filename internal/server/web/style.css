@@ -142,18 +142,20 @@ dd.big { font-size: 26px; font-weight: 600; }
   font-size: 12px;
 }
 .refresh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.refresh svg { width: 18px; height: 18px; transform: rotate(-90deg); display: block; }
-.refresh circle { fill: none; stroke-width: 2.5; }
-.refresh .track { stroke: var(--track); }
+.refresh svg { width: 20px; height: 20px; transform: rotate(-90deg); display: block; }
+/* Dash lengths use the real circumference (2 * pi * 8 = 50.27) rather than
+   pathLength, which some browsers ignore on <circle>. Butt caps so an empty
+   arc draws nothing instead of a dot. */
+.refresh circle { fill: none; stroke-width: 3; }
+.refresh .track { stroke: color-mix(in srgb, currentColor 22%, transparent); }
 .refresh .arc {
   stroke: currentColor;
-  stroke-linecap: round;
-  stroke-dasharray: 100;
-  stroke-dashoffset: 100;
+  stroke-dasharray: 50.27;
+  stroke-dashoffset: 50.27;
 }
 .refresh.counting .arc { animation: refresh-fill var(--refresh-duration) linear forwards; }
 .refresh.fetching svg { animation: refresh-spin .8s linear infinite; }
-.refresh.fetching .arc { stroke-dasharray: 30 70; stroke-dashoffset: 0; }
+.refresh.fetching .arc { stroke-dasharray: 14 36.27; stroke-dashoffset: 0; }
 .refresh.error { color: var(--err); }
 .refresh-text { display: none; color: var(--muted); font-variant-numeric: tabular-nums; }
 

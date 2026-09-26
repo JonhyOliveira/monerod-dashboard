@@ -25,6 +25,17 @@ go build -o monerod-dashboard ./cmd/monerod-dashboard
 
 Then open http://127.0.0.1:8080.
 
+## Docker
+
+```sh
+docker build -t monerod-dashboard .
+docker run --rm -p 8080:8080 \
+  -e MONEROD_RPC_URL=http://<node-host>:18081 \
+  monerod-dashboard
+```
+
+The image listens on `0.0.0.0:8080` inside the container. If monerod runs on the Docker host, use `--network host` with `-e MONEROD_RPC_URL=http://127.0.0.1:18081`, or on Docker Desktop point it at `http://host.docker.internal:18081`. Pass RPC credentials with `-e MONEROD_RPC_USER=... -e MONEROD_RPC_PASS=...`.
+
 ## Configuration
 
 | Flag           | Env var            | Default                  | Description                                  |

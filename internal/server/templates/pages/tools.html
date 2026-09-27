@@ -34,7 +34,7 @@
       <button type="submit" class="secondary">Check</button>
     </form>
     {{if eq $d.Op "key_images"}}{{if $d.Err}}{{template "err" $d.Err}}{{end}}
-    {{if $d.KeyImages}}<table class="table"><tbody>{{range $d.KeyImages}}<tr><td class="mono">{{short .KeyImage}}</td><td>{{.Status}}</td></tr>{{end}}</tbody></table>{{end}}{{end}}
+    {{if $d.KeyImages}}<div class="scroll"><table class="table"><tbody>{{range $d.KeyImages}}<tr><td class="mono">{{short .KeyImage}}</td><td>{{.Status}}</td></tr>{{end}}</tbody></table></div>{{end}}{{end}}
   </article>
 
   <article class="card" id="tool-outs">

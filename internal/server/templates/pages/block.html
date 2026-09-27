@@ -26,13 +26,13 @@
 
 <section class="card">
   <h2>Transactions</h2>
-  <table class="table">
+  <div class="scroll"><table class="table">
     <thead><tr><th>Hash</th><th>Type</th></tr></thead>
     <tbody>
       <tr><td class="mono"><a href="/tx/{{.MinerTxHash}}">{{.MinerTxHash}}</a></td><td>coinbase</td></tr>
       {{range .TxHashes}}<tr><td class="mono"><a href="/tx/{{.}}">{{.}}</a></td><td>transfer</td></tr>{{end}}
     </tbody>
-  </table>
+  </table></div>
 </section>
 
 <section class="card">

@@ -61,13 +61,13 @@
   <h2>Public RPC nodes</h2>
   {{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
   {{if or .White .Gray}}
-  <table class="table">
+  <div class="scroll"><table class="table">
     <thead><tr><th>Host</th><th class="num">RPC port</th><th>List</th><th>Last seen</th></tr></thead>
     <tbody>
       {{range .White}}<tr><td class="mono">{{.Host}}</td><td class="num">{{.RPCPort}}</td><td>white</td><td>{{ago .LastSeen}}</td></tr>{{end}}
       {{range .Gray}}<tr><td class="mono">{{.Host}}</td><td class="num">{{.RPCPort}}</td><td>gray</td><td>{{ago .LastSeen}}</td></tr>{{end}}
     </tbody>
-  </table>
+  </table></div>
   {{else}}<p class="muted">No peers advertising a public RPC port.</p>{{end}}
   {{end}}{{end}}
 </section>

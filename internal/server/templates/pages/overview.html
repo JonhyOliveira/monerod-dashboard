@@ -23,10 +23,10 @@
     {{with .Sync.V}}{{if .Spans}}
     <details open>
       <summary>Downloading {{len .Spans}} span(s)</summary>
-      <table class="table">
+      <div class="scroll tall"><table class="table">
         <thead><tr><th>Peer</th><th class="num">From height</th><th class="num">Blocks</th><th class="num">Size</th><th class="num">Rate</th></tr></thead>
         <tbody>{{range .Spans}}<tr><td>{{.RemoteAddress}}</td><td class="num">{{int .StartBlockHeight}}</td><td class="num">{{int .NBlocks}}</td><td class="num">{{bytes .Size}}</td><td class="num">{{bytes .Rate}}/s</td></tr>{{end}}</tbody>
-      </table>
+      </table></div>
     </details>
     {{end}}{{end}}
   </article>

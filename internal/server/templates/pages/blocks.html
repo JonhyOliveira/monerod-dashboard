@@ -5,10 +5,10 @@
   <article class="card">
     <h2>Alternative chains</h2>
     {{with .Data.AltChains}}{{if .Err}}{{template "err" .Err}}{{else if not .V}}<p class="muted">None known.</p>{{else}}
-    <table class="table">
+    <div class="scroll"><table class="table">
       <thead><tr><th>Tip</th><th class="num">Height</th><th class="num">Length</th><th>Forks from</th><th class="num">Difficulty</th></tr></thead>
       <tbody>{{range .V}}<tr><td class="mono">{{short .BlockHash}}</td><td class="num">{{int .Height}}</td><td class="num">{{int .Length}}</td><td class="mono"><a href="/block/{{.MainChainParentBlock}}">{{short .MainChainParentBlock}}</a></td><td class="num">{{widehex .WideDifficulty}}</td></tr>{{end}}</tbody>
-    </table>{{end}}{{end}}
+    </table></div>{{end}}{{end}}
   </article>
   <article class="card">
     <h2>Alternative blocks</h2>

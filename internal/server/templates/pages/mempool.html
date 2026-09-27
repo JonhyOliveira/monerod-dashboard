@@ -91,10 +91,10 @@
   {{if .V.SpentKeyImages}}
   <details>
     <summary>{{len .V.SpentKeyImages}} key images spent by pool transactions</summary>
-    <table class="table">
+    <div class="scroll"><table class="table">
       <thead><tr><th>Key image</th><th>Spent by</th></tr></thead>
       <tbody>{{range .V.SpentKeyImages}}<tr><td class="mono">{{short .IDHash}}</td><td class="mono">{{range .TxsHashes}}<a href="/tx/{{.}}">{{short .}}</a> {{end}}</td></tr>{{end}}</tbody>
-    </table>
+    </table></div>
   </details>
   {{end}}
   {{end}}{{end}}

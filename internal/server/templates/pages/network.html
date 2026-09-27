@@ -63,10 +63,10 @@
   {{end}}
   {{if .Spans}}
   <h3>Spans being downloaded</h3>
-  <table class="table">
+  <div class="scroll"><table class="table">
     <thead><tr><th>Peer</th><th class="num">From height</th><th class="num">Blocks</th><th class="num">Size</th><th class="num">Rate</th></tr></thead>
     <tbody>{{range .Spans}}<tr><td class="mono">{{.RemoteAddress}}</td><td class="num">{{int .StartBlockHeight}}</td><td class="num">{{int .NBlocks}}</td><td class="num">{{bytes .Size}}</td><td class="num">{{bytes .Rate}}/s</td></tr>{{end}}</tbody>
-  </table>
+  </table></div>
   {{end}}
   {{if and .Overview (ne .Overview "[]")}}<p class="muted small mono">Block queue: {{.Overview}}</p>{{end}}
   {{end}}{{end}}

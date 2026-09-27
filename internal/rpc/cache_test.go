@@ -24,8 +24,8 @@ func TestCacheSharesConcurrentFetches(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if v, _, err := c.get(context.Background(), "k", time.Minute, false, counter(&calls, 20*time.Millisecond)); err != nil || v != 1 {
-				t.Errorf("got %v, %v", v, err)
+			if r := c.get(context.Background(), "k", time.Minute, false, counter(&calls, 20*time.Millisecond)); r.err != nil || r.val != 1 {
+				t.Errorf("got %v, %v", r.val, r.err)
 			}
 		}()
 	}
@@ -99,9 +99,9 @@ func TestCacheInvalidateDiscardsInflight(t *testing.T) {
 	state.Store(2) // an action changes the daemon...
 	c.invalidate() // ...and invalidates while the old fetch is in flight
 	close(release)
-	v, _, _ := c.get(context.Background(), "k", time.Minute, false, func(context.Context) (any, error) { return int(state.Load()), nil })
-	if v != 2 {
-		t.Fatalf("got %v after invalidate, want the post-change value 2", v)
+	r := c.get(context.Background(), "k", time.Minute, false, func(context.Context) (any, error) { return int(state.Load()), nil })
+	if r.val != 2 {
+		t.Fatalf("got %v after invalidate, want the post-change value 2", r.val)
 	}
 }
 
@@ -111,11 +111,78 @@ func TestCacheKeepsErrors(t *testing.T) {
 	boom := errors.New("daemon down")
 	fail := func(context.Context) (any, error) { calls.Add(1); return nil, boom }
 	for i := 0; i < 3; i++ {
-		if _, _, err := c.get(context.Background(), "k", time.Minute, false, fail); !errors.Is(err, boom) {
-			t.Fatalf("err = %v", err)
+		if r := c.get(context.Background(), "k", time.Minute, false, fail); !errors.Is(r.err, boom) || r.hasVal {
+			t.Fatalf("got %+v", r)
 		}
 	}
 	if calls.Load() != 1 {
 		t.Fatalf("an unreachable daemon was asked %d times; errors should be cached too", calls.Load())
+	}
+}
+
+// A failed refresh keeps serving the last good value, with its age and the
+// error.
+func TestCacheKeepsLastGoodValue(t *testing.T) {
+	c := newCache(time.Minute, time.Second)
+	now := time.Unix(1_800_000_000, 0)
+	c.now = func() time.Time { return now }
+	ok := true
+	boom := errors.New("connection refused")
+	fetch := func(context.Context) (any, error) {
+		if ok {
+			return "good", nil
+		}
+		return nil, boom
+	}
+	c.get(context.Background(), "k", time.Second, false, fetch)
+	goodAt := now
+
+	ok = false
+	now = now.Add(10 * time.Second)
+	c.invalidate() // force a refetch, which fails
+	r := c.get(context.Background(), "k", time.Second, false, fetch)
+	if r.val != "good" || !r.hasVal || !r.okAt.Equal(goodAt) || !errors.Is(r.err, boom) {
+		t.Fatalf("after a failed refresh: %+v", r)
+	}
+}
+
+// A reader never waits on the daemon when there is something to show: an
+// entry that fell behind is returned at once and refreshed in the background.
+func TestCacheServesBehindEntryWithoutWaiting(t *testing.T) {
+	c := newCache(time.Minute, 5*time.Second)
+	var calls atomic.Int32
+	c.get(context.Background(), "k", 10*time.Millisecond, false, counter(&calls, 0))
+	time.Sleep(40 * time.Millisecond) // > 2 refresh intervals, no loop running
+	start := time.Now()
+	r := c.get(context.Background(), "k", 10*time.Millisecond, false, counter(&calls, 300*time.Millisecond))
+	if time.Since(start) > 100*time.Millisecond || r.val != 1 {
+		t.Fatalf("waited %v for %v", time.Since(start), r.val)
+	}
+	time.Sleep(400 * time.Millisecond)
+	if r := c.get(context.Background(), "k", time.Minute, false, counter(&calls, 0)); r.val != 2 {
+		t.Fatalf("background refresh did not land: %v", r.val)
+	}
+}
+
+func TestFreshness(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	_, f := WithFreshness(context.Background())
+	f.now = func() time.Time { return now }
+
+	f.note(cachedResult{hasVal: true, okAt: now.Add(-3 * time.Second), every: 5 * time.Second})
+	if stale, _ := f.Stale(); stale {
+		t.Fatal("recent data flagged stale")
+	}
+	f.note(cachedResult{hasVal: true, okAt: now.Add(-11 * time.Second), every: 5 * time.Second})
+	if stale, err := f.Stale(); !stale || err != nil {
+		t.Fatalf("late refresh: stale=%v err=%v", stale, err)
+	}
+	boom := errors.New("down")
+	f.note(cachedResult{hasVal: true, okAt: now.Add(-1 * time.Second), every: time.Minute, err: boom})
+	if stale, err := f.Stale(); !stale || err != boom {
+		t.Fatalf("failed refresh: stale=%v err=%v", stale, err)
+	}
+	if !f.Oldest().Equal(now.Add(-11 * time.Second)) {
+		t.Fatalf("oldest = %v", f.Oldest())
 	}
 }

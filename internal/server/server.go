@@ -55,6 +55,10 @@ type StatusResponse struct {
 	RefreshSeconds float64          `json:"refresh_seconds"`
 	Node           *status.Node     `json:"node,omitempty"`
 	Warnings       []status.Warning `json:"warnings"`
+	// Stale is set when monerod isn't answering (or answering late) and the
+	// data is the last that was fetched successfully, as of DataAsOf.
+	Stale    bool       `json:"stale,omitempty"`
+	DataAsOf *time.Time `json:"data_as_of,omitempty"`
 }
 
 // Handler returns the HTTP handler for all routes.
@@ -139,7 +143,10 @@ func (s *Server) requireSession(next http.Handler) http.Handler {
 				return
 			}
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, sess)))
+		// Cached reads report how old their data is into the request's
+		// Freshness; the page header shows it.
+		ctx, _ := rpc.WithFreshness(context.WithValue(r.Context(), ctxKey{}, sess))
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -181,6 +188,16 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	s.auth.drop(sessionFrom(r))
 	setSessionCookie(w, r, "", -1)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
+
+func staleWarning(age time.Duration, err error) status.Warning {
+	msg := "Showing data from " + fmtDuration(int64(age.Seconds())) + " ago: "
+	if err != nil {
+		msg += "monerod is not answering. " + errMessage(err)
+	} else {
+		msg += "refreshes from monerod are running late."
+	}
+	return status.Warning{Level: "error", Code: "stale", Message: msg}
 }
 
 // safeNext only allows local paths as a post-login redirect target.
@@ -226,6 +243,13 @@ func (s *Server) Status(ctx context.Context) StatusResponse {
 	node, ws := status.Build(info, last, s.now())
 	resp.OK = true
 	resp.Node = &node
+	if f := rpc.FreshnessFrom(ctx); f != nil {
+		if stale, err := f.Stale(); stale {
+			asOf := f.Oldest()
+			resp.Stale, resp.DataAsOf = true, &asOf
+			resp.Warnings = append(resp.Warnings, staleWarning(s.now().Sub(asOf), err))
+		}
+	}
 	resp.Warnings = append(resp.Warnings, ws...)
 	return resp
 }

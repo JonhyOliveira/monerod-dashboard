@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"log"
 	"math/big"
@@ -70,7 +71,11 @@ type headerView struct {
 	Nettype    string
 	Restricted bool
 	Version    string
-	Updated    time.Time
+	Updated    time.Time // when the oldest data on the page was fetched
+	// Stale flags data that is out of date: Age is how old, Why the reason.
+	Stale bool
+	Age   string
+	Why   string
 }
 
 var navItems = []struct{ Key, Label, Href string }{
@@ -114,9 +119,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, page string, v v
 		v.CSRF = sess.csrf
 		v.Flashes = s.auth.takeFlashes(sess)
 	}
-	if v.Header.Updated.IsZero() {
-		v.Header = s.header(r)
-	}
+	v.Header = s.header(r)
 
 	name := "layout"
 	if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-Target") == "live" {
@@ -150,17 +153,27 @@ func (s *Server) renderFragment(w http.ResponseWriter, page, name string, data a
 // header fetches the node identity shown in the header.
 func (s *Server) header(r *http.Request) headerView {
 	h := headerView{Updated: s.now()}
-	info, at, err := s.rpc.GetInfoAt(r.Context())
-	if !at.IsZero() {
-		h.Updated = at // when the data was fetched, not when the page was drawn
+	if info, err := s.rpc.GetInfo(r.Context()); err == nil {
+		h.OK = true
+		h.Nettype = info.Nettype
+		h.Restricted = info.Restricted
+		h.Version = info.Version
 	}
-	if err != nil {
-		return h
+	// Everything the page read from the cache (this call included) has
+	// reported its age by now.
+	if f := rpc.FreshnessFrom(r.Context()); f != nil {
+		if at := f.Oldest(); !at.IsZero() {
+			h.Updated = at
+		}
+		if stale, err := f.Stale(); stale && h.OK {
+			age := s.now().Sub(h.Updated)
+			h.Stale, h.Age = true, fmtDuration(int64(max(age, 0).Seconds()))
+			h.Why = "Refreshes from monerod are running late."
+			if err != nil {
+				h.Why = "monerod is not answering: " + errMessage(err)
+			}
+		}
 	}
-	h.OK = true
-	h.Nettype = info.Nettype
-	h.Restricted = info.Restricted
-	h.Version = info.Version
 	return h
 }
 
@@ -389,6 +402,8 @@ func errMessage(err error) string {
 		return "monerod did not answer in time. It may be busy (a large prune or a slow lookup), or unreachable."
 	case errors.Is(err, syscall.ECONNREFUSED):
 		return "Cannot reach monerod: connection refused. Is it running?"
+	case errors.Is(err, syscall.ECONNRESET), errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		return "monerod closed the connection. It may be shutting down or restarting."
 	}
 	return err.Error()
 }

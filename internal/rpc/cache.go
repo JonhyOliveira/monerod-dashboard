@@ -6,10 +6,14 @@ import (
 	"time"
 )
 
-// cache holds the latest result (value or error) of each read call, keyed
-// by method and parameters. A background loop (run) refreshes entries before
+// cache holds the latest successful result of each read call, keyed by
+// method and parameters. A background loop (run) refreshes entries before
 // they go stale, so readers are answered from memory instead of waiting on
 // the daemon.
+//
+// A failed refresh does not throw the last good value away: readers keep
+// getting it, together with the error and the time it was fetched, so the
+// dashboard can say how out of date it is.
 //
 // Entries stay warm while they are being read: one not read for idleAfter
 // stops being refreshed and is eventually dropped. Pinned entries are
@@ -17,7 +21,7 @@ import (
 type cache struct {
 	now       func() time.Time
 	idleAfter time.Duration
-	timeout   time.Duration // per background fetch
+	timeout   time.Duration // per fetch
 
 	mu      sync.Mutex
 	entries map[string]*entry
@@ -29,15 +33,26 @@ type entry struct {
 	pinned bool
 	fetch  func(context.Context) (any, error)
 
-	val   any
-	err   error
-	at    time.Time // when val/err were fetched
-	valid bool
-	used  time.Time // last read
+	val     any       // last successful result
+	hasVal  bool      //
+	okAt    time.Time // when val was fetched
+	lastErr error     // error of the latest attempt, nil if it succeeded
+	tried   time.Time // when the latest attempt finished
+	fresh   bool      // false until the first attempt, and after invalidate
+	used    time.Time // last read
 
 	gen      uint64        // bumped by invalidate; results of older fetches are discarded
 	inflight chan struct{} // closed when the current fetch finishes
 	infGen   uint64        // generation the in-flight fetch belongs to
+}
+
+// cached is what a read returns.
+type cachedResult struct {
+	val    any
+	hasVal bool
+	okAt   time.Time     // when val was fetched
+	err    error         // latest attempt's error (val, if any, is older)
+	every  time.Duration // the entry's refresh interval
 }
 
 func newCache(idleAfter, timeout time.Duration) *cache {
@@ -50,11 +65,13 @@ func newCache(idleAfter, timeout time.Duration) *cache {
 	}
 }
 
-// get returns the cached result for key, fetching it synchronously only if
-// there is none yet or it is far out of date (e.g. nobody read it for a
-// while, so the background loop stopped refreshing it). Concurrent callers
-// share one fetch.
-func (c *cache) get(ctx context.Context, key string, every time.Duration, pinned bool, fetch func(context.Context) (any, error)) (any, time.Time, error) {
+// get returns the cached result for key. It only waits for the daemon when
+// there is nothing to show yet, or the entry was invalidated (after an
+// action, whose effect must be visible). Otherwise it answers immediately,
+// and if the entry fell behind (nobody read it for a while) it starts a
+// refresh in the background; the caller sees the age in okAt. Concurrent
+// callers share one fetch.
+func (c *cache) get(ctx context.Context, key string, every time.Duration, pinned bool, fetch func(context.Context) (any, error)) cachedResult {
 	c.mu.Lock()
 	e := c.entries[key]
 	if e == nil {
@@ -64,34 +81,41 @@ func (c *cache) get(ctx context.Context, key string, every time.Duration, pinned
 	e.fetch = fetch // latest closure; parameters are part of the key
 	e.used = c.now()
 	for {
-		// Serve anything the background loop could have refreshed; older
-		// than that means the entry fell out of rotation.
-		if e.valid && c.now().Sub(e.at) < 3*e.every {
-			v, at, err := e.val, e.at, e.err
+		if e.fresh {
+			if c.now().Sub(e.tried) >= 2*e.every {
+				c.start(e) // behind: refresh, but don't make this reader wait
+			}
+			r := e.result()
 			c.mu.Unlock()
-			return v, at, err
+			return r
 		}
-		ch := c.start(key, e)
+		ch := c.start(e)
 		c.mu.Unlock()
 		select {
 		case <-ch:
 		case <-ctx.Done():
-			return nil, time.Time{}, ctx.Err()
+			c.mu.Lock()
+			r := e.result()
+			c.mu.Unlock()
+			if !r.hasVal {
+				r.err = ctx.Err()
+			}
+			return r
 		}
 		c.mu.Lock()
-		if e.valid {
-			v, at, err := e.val, e.at, e.err
-			c.mu.Unlock()
-			return v, at, err
-		}
-		// Invalidated while we waited: fetch again.
+		// Not fresh after the fetch means it was invalidated meanwhile:
+		// fetch again.
 	}
+}
+
+func (e *entry) result() cachedResult {
+	return cachedResult{val: e.val, hasVal: e.hasVal, okAt: e.okAt, err: e.lastErr, every: e.every}
 }
 
 // start begins a fetch of e unless one for the current generation is
 // already running, and returns the channel closed when it finishes.
 // Callers hold c.mu.
-func (c *cache) start(key string, e *entry) chan struct{} {
+func (c *cache) start(e *entry) chan struct{} {
 	if e.inflight != nil && e.infGen == e.gen {
 		return e.inflight
 	}
@@ -103,7 +127,11 @@ func (c *cache) start(key string, e *entry) chan struct{} {
 		cancel()
 		c.mu.Lock()
 		if e.gen == gen {
-			e.val, e.err, e.at, e.valid = v, err, c.now(), true
+			now := c.now()
+			e.tried, e.fresh, e.lastErr = now, true, err
+			if err == nil {
+				e.val, e.hasVal, e.okAt = v, true, now
+			}
 		}
 		if e.inflight == ch {
 			e.inflight = nil
@@ -114,13 +142,14 @@ func (c *cache) start(key string, e *entry) chan struct{} {
 	return ch
 }
 
-// invalidate forgets every cached result, so the next read fetches fresh
-// data. Used after anything that changes the daemon's state.
+// invalidate makes the next read of every entry fetch fresh data. Used after
+// anything that changes the daemon's state. Last good values are kept, in
+// case the refetch fails.
 func (c *cache) invalidate() {
 	c.mu.Lock()
 	for _, e := range c.entries {
 		e.gen++
-		e.valid = false
+		e.fresh = false
 	}
 	c.mu.Unlock()
 	select {
@@ -156,9 +185,9 @@ func (c *cache) refreshDue() {
 				delete(c.entries, key)
 			}
 		case idle && !e.pinned:
-			// Not read lately: let it age; the next read refetches.
-		case !e.valid || now.Sub(e.at) >= e.every:
-			c.start(key, e)
+			// Not read lately: let it age; the next read refreshes it.
+		case !e.fresh || now.Sub(e.tried) >= e.every:
+			c.start(e)
 		}
 	}
 }

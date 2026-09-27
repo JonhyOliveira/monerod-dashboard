@@ -31,7 +31,7 @@ type Options struct {
 	URL string
 	// User and Pass enable HTTP digest auth (monerod --rpc-login).
 	User, Pass string
-	// Timeout bounds each HTTP request. Zero means 5s.
+	// Timeout bounds each HTTP request. Zero means 30s.
 	Timeout time.Duration
 	// Transport overrides the underlying transport (mainly for tests).
 	Transport http.RoundTripper
@@ -40,7 +40,7 @@ type Options struct {
 // New returns a Client for the given options.
 func New(o Options) *Client {
 	if o.Timeout == 0 {
-		o.Timeout = 5 * time.Second
+		o.Timeout = 30 * time.Second // some management calls (prune, pop_blocks) are slow
 	}
 	var rt http.RoundTripper = o.Transport
 	if rt == nil {

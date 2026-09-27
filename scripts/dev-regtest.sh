@@ -79,7 +79,9 @@ start() {
     [ "$h" -ge 130 ] && break
     rpc $A_RPC generateblocks "{\"amount_of_blocks\":10,\"wallet_address\":\"$addr\"}" >/dev/null 2>&1 || sleep 1
   done
-  rpc $WALLET_RPC refresh >/dev/null
+  # A node restarted from scratch (or killed before saving) has a different
+  # chain than the wallet remembers: rescan instead of failing.
+  rpc $WALLET_RPC refresh >/dev/null 2>&1 || rpc $WALLET_RPC rescan_blockchain >/dev/null
   echo "regtest up: node A rpc :$A_RPC (restricted :$A_RESTRICTED), node B :$B_RPC, wallet :$WALLET_RPC"
 }
 

@@ -75,5 +75,6 @@
 
 {{define "header-meta-inner"}}
   {{if .Version}}<span>v{{.Version}}</span>{{end}}
-  <span class="muted">updated {{ts .Updated.Unix}}</span>
+  {{if .Stale}}<span class="badge warn stale-flag" title="{{.Why}} Last successful update: {{.Updated.UTC.Format "2006-01-02 15:04:05"}} UTC.">data {{.Age}} old</span>
+  {{else}}<span class="muted">updated {{ts .Updated.Unix}}</span>{{end}}
 {{end}}

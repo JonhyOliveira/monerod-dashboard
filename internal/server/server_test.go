@@ -356,26 +356,59 @@ func TestSearch(t *testing.T) {
 	}
 }
 
+// A daemon that was never reachable: nothing to show.
 func TestUnreachableDaemon(t *testing.T) {
 	e := newEnv(t)
-	e.login()
 	e.daemon.Close()
-	// The cache still holds the last good answer until the next refresh.
-	var resp *http.Response
-	var body string
-	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-		if resp, body = e.get("/"); strings.Contains(body, "Unreachable") {
-			break
-		}
-	}
+	e.login()
+	resp, body := e.get("/")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status %d", resp.StatusCode)
 	}
-	mustContain(t, body, "Unreachable", "Cannot reach monerod", `<section class="grid stale">`)
+	mustContain(t, body, "Unreachable", "Cannot reach monerod", `<section class="grid stale">`, `badge err">unreachable`)
 	var st StatusResponse
 	_, raw := e.get("/api/status")
 	if json.Unmarshal([]byte(raw), &st) != nil || st.OK {
 		t.Errorf("api status = %s", raw)
+	}
+}
+
+// A daemon that goes away: the last good data stays up, flagged with its age.
+func TestLastGoodDataWhenDaemonGoesAway(t *testing.T) {
+	e := newEnv(t)
+	e.login()
+	e.get("/peers")
+	e.daemon.Close()
+	var body string
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if _, body = e.get("/"); strings.Contains(body, "stale-flag") {
+			break
+		}
+	}
+	mustContain(t, body,
+		`<dd id="height">131</dd>`, // last known data, not blanks
+		"stale-flag", "old</span>", "monerod is not answering",
+		"Showing data from", `<section class="grid stale">`)
+	if strings.Contains(body, "Unreachable") {
+		t.Error("last good data replaced by the unreachable state")
+	}
+	_, body = e.get("/peers")
+	mustContain(t, body, "127.0.0.1:38090", "stale-flag")
+
+	var st StatusResponse
+	_, raw := e.get("/api/status")
+	if json.Unmarshal([]byte(raw), &st) != nil || !st.OK || !st.Stale || st.DataAsOf == nil {
+		t.Errorf("api status = %s", raw)
+	}
+}
+
+// Fresh data carries no flag.
+func TestNoStaleFlagWhenFresh(t *testing.T) {
+	e := newEnv(t)
+	e.login()
+	_, body := e.get("/")
+	if strings.Contains(body, "stale-flag") || strings.Contains(body, "Showing data from") {
+		t.Error("fresh data flagged stale")
 	}
 }
 
@@ -524,6 +557,11 @@ func TestErrMessageTimeoutAndRefused(t *testing.T) {
 	_, err := c.Update(context.Background(), "check")
 	if got := errMessage(err); !strings.Contains(got, "did not answer in time") {
 		t.Errorf("timeout: %q", got)
+	}
+	d.Handle("get_info", func(json.RawMessage) any { panic(http.ErrAbortHandler) }) // drops the connection
+	_, err = rpc.New(rpc.Options{URL: d.URL}).GetInfo(context.Background())
+	if got := errMessage(err); !strings.Contains(got, "closed the connection") {
+		t.Errorf("reset: %q", got)
 	}
 	d.Close()
 	_, err = rpc.New(rpc.Options{URL: d.URL}).GetInfo(context.Background())

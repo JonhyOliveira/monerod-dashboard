@@ -18,6 +18,8 @@ Pages are rendered on the server. Live sections refresh every few seconds (the r
 
 Pages never wait on monerod. The dashboard keeps the latest answer to every read call in memory, and a background loop refreshes it: live data every `-refresh` (5s), slow-changing data (peer lists, consensus, fees) every `-slow-refresh` (1m). The overview's data is always kept warm; other pages' data stays warm while someone has viewed it in the last 10 minutes. Actions bypass the cache and clear it, so their effect shows immediately.
 
+If monerod stops answering, the dashboard keeps showing the last data it fetched successfully. A badge in the header says how old it is (e.g. "data 2m 13s old", with the reason on hover), and the overview explains what's wrong. It appears whenever a page shows data whose latest refresh failed, or that is more than two refresh intervals old; it clears on its own once monerod answers again.
+
 ## Security
 
 The dashboard can stop, prune and reconfigure your node, so **the whole dashboard sits behind a password login**:
@@ -150,7 +152,7 @@ Other deliberate limits:
 - `GET /`, `/peers`, `/network`, `/mempool`, `/blocks`, `/block/{height|hash}`, `/tx/{hash}`, `/mining`, `/maintenance`, `/tools`, `/console`: the dashboard
 - `GET /mempool/rows`, `/peers/rows`: the next batch of a long table (htmx)
 - `POST /actions/{name}`: management actions (session and CSRF token required)
-- `GET /api/status`: JSON status (session required; `ok: false` and an `error` when the daemon is unreachable)
+- `GET /api/status`: JSON status (session required; `ok: false` and an `error` when there is no data at all, `stale: true` and `data_as_of` when showing last known data)
 - `GET /healthz`: liveness check for the dashboard itself (public)
 
 ## Development

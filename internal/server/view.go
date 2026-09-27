@@ -19,6 +19,7 @@ const dash = "—"
 // overview is the view model for the overview page's status cards.
 type overview struct {
 	OK       bool
+	Stale    bool // last known data, monerod not answering or late
 	Warnings []status.Warning
 
 	StateClass   string
@@ -51,6 +52,7 @@ type overview struct {
 func newOverview(s StatusResponse) overview {
 	p := overview{
 		OK:       s.OK,
+		Stale:    s.Stale,
 		Warnings: s.Warnings,
 
 		StateClass:   "unreachable",

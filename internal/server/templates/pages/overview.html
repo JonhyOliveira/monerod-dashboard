@@ -8,7 +8,7 @@
   {{range $o.Warnings}}<li class="{{.Level}}">{{.Message}}</li>{{end}}
 </ul>
 
-<section class="grid{{if not $o.OK}} stale{{end}}">
+<section class="grid{{if or (not $o.OK) $o.Stale}} stale{{end}}">
   <article class="card wide" id="card-sync">
     <h2>Sync</h2>
     <div class="state"><span class="dot {{$o.StateClass}}"></span><span id="state-label">{{$o.StateLabel}}</span></div>

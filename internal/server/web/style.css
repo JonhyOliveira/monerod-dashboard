@@ -178,6 +178,8 @@ dd.big { font-size: 26px; font-weight: 600; }
 .logo { color: var(--text); text-decoration: none; font-weight: 700; font-size: 20px; }
 .badges { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .badge.err { background: var(--err); }
+.badge.warn { background: var(--warn); }
+.stale-flag { cursor: help; text-transform: none; letter-spacing: 0; }
 .hdr-meta { display: inline-flex; gap: 12px; align-items: center; }
 .search { flex: 1 1 260px; max-width: 460px; }
 .search input { width: 100%; }

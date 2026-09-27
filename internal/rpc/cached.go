@@ -35,18 +35,30 @@ func (n *Node) Run(ctx context.Context) {
 // Invalidate drops every cached result.
 func (n *Node) Invalidate() { n.cache.invalidate() }
 
-// Warm fetches the data the overview needs, so the first page load after
-// startup doesn't wait on the daemon.
+// Warm fetches everything the overview shows, so the first page load after
+// startup doesn't wait on the daemon, and there is last known data to show
+// if it goes away later.
 func (n *Node) Warm(ctx context.Context) {
 	n.GetInfo(ctx)
 	n.GetLastBlockHeader(ctx)
+	n.GetNetStats(ctx)
+	n.SyncInfo(ctx)
+	n.GetFeeEstimate(ctx)
+	n.HardForkInfo(ctx)
+	n.GetVersion(ctx)
 }
 
-// cached is the typed front of cache.get.
+// cached is the typed front of cache.get. When a refresh failed but an
+// earlier fetch succeeded, it returns that older value without an error;
+// the context's Freshness (if any) records how old it is and why.
 func cached[T any](ctx context.Context, n *Node, key string, every time.Duration, pinned bool, fetch func(context.Context) (T, error)) (T, time.Time, error) {
-	v, at, err := n.cache.get(ctx, key, every, pinned, func(ctx context.Context) (any, error) { return fetch(ctx) })
-	t, _ := v.(T)
-	return t, at, err
+	r := n.cache.get(ctx, key, every, pinned, func(ctx context.Context) (any, error) { return fetch(ctx) })
+	freshnessFrom(ctx).note(r)
+	if !r.hasVal {
+		var zero T
+		return zero, time.Time{}, r.err
+	}
+	return r.val.(T), r.okAt, nil
 }
 
 // The overview's data is pinned: always kept fresh, even with nobody
@@ -58,7 +70,8 @@ func (n *Node) GetInfo(ctx context.Context) (*GetInfoResult, error) {
 	return v, err
 }
 
-// GetInfoAt is GetInfo plus the time the data was fetched.
+// GetInfoAt is GetInfo plus the time the data was fetched (which is older
+// than the last refresh if refreshes are failing).
 func (n *Node) GetInfoAt(ctx context.Context) (*GetInfoResult, time.Time, error) {
 	return cached(ctx, n, "get_info", n.fast, true, n.Client.GetInfo)
 }

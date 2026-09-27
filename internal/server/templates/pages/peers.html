@@ -44,13 +44,13 @@
 <section class="card">
   <h2>Peer list</h2>
   {{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
-  <details>
-    <summary>White list: {{len .WhiteList}} peers seen recently</summary>
-    {{template "peerlist" .WhiteList}}
+  <details{{if $.Data.White.Extra}} open{{end}}>
+    <summary>White list: {{int $.Data.White.Total}} peers seen recently</summary>
+    {{template "peerlist" $.Data.White}}
   </details>
-  <details>
-    <summary>Gray list: {{len .GrayList}} peers heard of, not yet contacted</summary>
-    {{template "peerlist" .GrayList}}
+  <details{{if $.Data.Gray.Extra}} open{{end}}>
+    <summary>Gray list: {{int $.Data.Gray.Total}} peers heard of, not yet contacted</summary>
+    {{template "peerlist" $.Data.Gray}}
   </details>
   {{end}}{{end}}
 </section>
@@ -75,15 +75,20 @@
 {{end}}
 
 {{define "peerlist"}}
-{{if .}}
+{{if .Rows}}
 <div class="scroll">
 <table class="table">
   <thead><tr><th>Host</th><th class="num">Port</th><th class="num">RPC port</th><th class="num">Pruning seed</th><th>Last seen</th></tr></thead>
-  <tbody>{{range firstN 250 .}}<tr><td class="mono">{{.Host}}</td><td class="num">{{.Port}}</td><td class="num">{{if .RPCPort}}{{.RPCPort}}{{else}}—{{end}}</td><td class="num">{{.PruningSeed}}</td><td>{{ago .LastSeen}}</td></tr>{{end}}</tbody>
+  <tbody>{{template "peer-rows" .}}</tbody>
 </table>
 </div>
-{{with more 250 .}}<p class="muted small">…and {{int .}} more not shown.</p>{{end}}
 {{else}}<p class="muted">Empty.</p>{{end}}
+{{end}}
+
+{{/* One batch of peer rows plus the sentinel that loads the next batch. */}}
+{{define "peer-rows"}}
+{{range .Rows}}<tr><td class="mono">{{.Host}}</td><td class="num">{{.Port}}</td><td class="num">{{if .RPCPort}}{{.RPCPort}}{{else}}—{{end}}</td><td class="num">{{.PruningSeed}}</td><td>{{ago .LastSeen}}</td></tr>{{end}}
+{{template "more-rows" dict "Page" . "Cols" 5}}
 {{end}}
 
 {{define "live"}}

@@ -11,3 +11,14 @@
      data-action post via htmx (toast + live refresh) when JavaScript runs,
      and as a normal form with a redirect back otherwise. */}}
 {{define "action-fields"}}<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="return" value="{{.Path}}">{{end}}
+
+{{/* Last row of a batch: htmx fetches the next batch when it scrolls into
+     view (IntersectionObserver) and replaces this row with it; hx-target is
+     explicit because htmx attributes inherit, and these rows can sit inside
+     an action form that targets #toasts. Without JavaScript it is a link.
+     Takes dict "Page" rowsPage "Cols" columns. */}}
+{{define "more-rows"}}{{with .Page}}{{if .Next}}
+<tr class="more-rows" hx-get="{{.MoreURL}}{{urlquery .Next}}" hx-trigger="intersect once" hx-target="this" hx-swap="outerHTML">
+  <td colspan="{{$.Cols}}"><a href="{{.PageURL}}{{.Next}}">Next {{min100 .Remaining}} of {{int .Remaining}} more…</a></td>
+</tr>
+{{end}}{{end}}{{end}}

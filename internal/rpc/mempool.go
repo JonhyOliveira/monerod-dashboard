@@ -25,7 +25,6 @@ type PoolTx struct {
 	KeptByBlock        bool   `json:"kept_by_block"`
 	LastFailedHeight   uint64 `json:"last_failed_height"`
 	MaxUsedBlockHeight uint64 `json:"max_used_block_height"`
-	TxJSON             string `json:"tx_json"`
 }
 
 // TransactionPool is /get_transaction_pool.

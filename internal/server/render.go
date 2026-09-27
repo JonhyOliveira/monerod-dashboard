@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/http"
 	"path"
-	"reflect"
 	"strconv"
 	"strings"
 	"syscall"
@@ -134,6 +133,20 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, page string, v v
 	w.Write(buf.Bytes())
 }
 
+// renderFragment executes one named template of a page on its own, e.g.
+// the next batch of a long table.
+func (s *Server) renderFragment(w http.ResponseWriter, page, name string, data any) {
+	var buf bytes.Buffer
+	if err := s.pages.pages[page].ExecuteTemplate(&buf, name, data); err != nil {
+		log.Printf("rendering %s/%s: %v", page, name, err)
+		http.Error(w, "internal error rendering rows", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(buf.Bytes())
+}
+
 // header fetches the node identity shown in the header.
 func (s *Server) header(r *http.Request) headerView {
 	h := headerView{Updated: s.now()}
@@ -206,15 +219,14 @@ var funcs = template.FuncMap{
 		}
 		return "no"
 	},
-	// firstN caps a list for display; more reports how many were cut.
-	"firstN": func(n int, list any) any { return firstN(n, list) },
-	"more": func(n int, list any) int {
-		l := reflect.ValueOf(list)
-		if l.Kind() != reflect.Slice {
-			return 0
+	"dict": func(kv ...any) map[string]any {
+		m := map[string]any{}
+		for i := 0; i+1 < len(kv); i += 2 {
+			m[kv[i].(string)] = kv[i+1]
 		}
-		return max(0, l.Len()-n)
+		return m
 	},
+	"min100": func(n int) int { return min(n, rowsPerPage) },
 	"seq": func(n int) []int {
 		out := make([]int, n)
 		for i := range out {
@@ -310,14 +322,6 @@ func fmtPct(a, b float64) string {
 		return dash
 	}
 	return toFixed(a/b*100, 1) + "%"
-}
-
-func firstN(n int, list any) any {
-	l := reflect.ValueOf(list)
-	if l.Kind() != reflect.Slice || l.Len() <= n {
-		return list
-	}
-	return l.Slice(0, n).Interface()
 }
 
 // barHeight is barWidth for vertical bars.

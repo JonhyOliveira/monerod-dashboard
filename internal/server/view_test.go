@@ -96,16 +96,3 @@ func TestSyncPercentFloors(t *testing.T) {
 		t.Errorf("SyncPercent = %q, want 99.99%%", p.SyncPercent)
 	}
 }
-
-func TestFirstN(t *testing.T) {
-	list := []int{1, 2, 3, 4, 5}
-	if got := firstN(3, list).([]int); len(got) != 3 {
-		t.Errorf("firstN(3) = %v", got)
-	}
-	if got := firstN(10, list).([]int); len(got) != 5 {
-		t.Errorf("firstN(10) = %v", got)
-	}
-	if got := funcs["more"].(func(int, any) int)(3, list); got != 2 {
-		t.Errorf("more = %d", got)
-	}
-}

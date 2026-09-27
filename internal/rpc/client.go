@@ -16,6 +16,9 @@ import (
 	"time"
 )
 
+// maxResponse caps how much of a response is read.
+const maxResponse = 1 << 30
+
 // Client talks to a single monerod instance.
 type Client struct {
 	base string
@@ -183,7 +186,12 @@ func (c *Client) post(ctx context.Context, path, name string, body []byte) ([]by
 		return nil, fmt.Errorf("%s: %w", name, err)
 	}
 	defer resp.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+	// Generous: a busy mainnet mempool (get_transaction_pool includes every
+	// transaction's decoded JSON) runs to hundreds of MiB.
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse+1))
+	if len(raw) > maxResponse {
+		return nil, fmt.Errorf("%s: response larger than %d MiB", name, maxResponse>>20)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("%s: reading response: %w", name, err)
 	}

@@ -85,7 +85,7 @@
   function tick() {
     if (!ring) return;
     const left = Math.max(0, Math.ceil((nextAt - Date.now()) / 1000));
-    const label = inflight ? "Refreshing…" : paused ? "Paused while you edit" : `Next refresh in ${left}s`;
+    const label = inflight ? "Refreshing…" : paused ? "Paused while you work in the list" : `Next refresh in ${left}s`;
     ring.title = label;
     ring.setAttribute("aria-label", label + (inflight ? "" : " (click to refresh now)"));
     $(".refresh-text", ring).textContent = inflight ? "…" : paused ? "Ⅱ" : `${left}s`;
@@ -101,10 +101,13 @@
 
   // Don't swap the live section out from under someone selecting rows or
   // typing in it.
+  // Also hold off once more rows were loaded by scrolling: a refresh would
+  // swap them away. The ring shows "paused"; clicking it refreshes anyway.
   function busy() {
     const a = document.activeElement;
     return (live.contains(a) && a.matches("input, select, textarea"))
-      || $$("input[type=checkbox]:checked", live).length > 0;
+      || $$("input[type=checkbox]:checked", live).length > 0
+      || $("tr[data-extra], .more-rows.htmx-request", live) !== null;
   }
 
   function refresh(force) {

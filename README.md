@@ -123,9 +123,32 @@ Every JSON method monerod offers has a place in the dashboard. Methods marked * 
 
 Not covered: the binary `.bin` endpoints (`get_blocks.bin` and friends). They exist for wallet synchronisation and each has a JSON equivalent above.
 
+## Limits
+
+Long lists are loaded in batches, not truncated: the mempool table and the peer lists show their first 100 rows, and the next 100 load as you scroll to the end. Batches come from the same cached snapshot (monerod can't page these lists itself), so rows don't repeat or go missing while you scroll. While extra rows are shown, the live refresh pauses; click the ring to refresh.
+
+Other deliberate limits:
+
+| What | Limit | Why |
+|------|-------|-----|
+| Blocks list | 20 per page, with older/newer links | paging |
+| Output distribution tool | shows the last 50 blocks (totals cover the whole range) | page size |
+| Output lookup tool | 1,000 indices per query | request size |
+| Generate blocks (regtest) | 1,000 per action | |
+| Pop blocks | 100,000 per action | typo guard |
+| Connection limits | outgoing ≤ 1,000, incoming ≤ 100,000 | typo guard |
+| Mining threads | 1–256 | |
+| Block template reserve size | 255 bytes | monerod's own maximum |
+| Action form size | 1 MiB | |
+| RPC response size | 1 GiB | memory guard |
+| RPC timeout | 30s (`-rpc-timeout`) | |
+| Login | locked out after 5 failures, backing off up to 15 min | brute force |
+| Session | 12 h idle, 7 days max | |
+
 ## HTTP endpoints
 
 - `GET /`, `/peers`, `/network`, `/mempool`, `/blocks`, `/block/{height|hash}`, `/tx/{hash}`, `/mining`, `/maintenance`, `/tools`, `/console`: the dashboard
+- `GET /mempool/rows`, `/peers/rows`: the next batch of a long table (htmx)
 - `POST /actions/{name}`: management actions (session and CSRF token required)
 - `GET /api/status`: JSON status (session required; `ok: false` and an `error` when the daemon is unreachable)
 - `GET /healthz`: liveness check for the dashboard itself (public)

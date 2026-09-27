@@ -16,8 +16,10 @@ import (
 func (s *Server) routePages(mux *http.ServeMux) {
 	mux.HandleFunc("GET /{$}", s.pageOverview)
 	mux.HandleFunc("GET /peers", s.pagePeers)
+	mux.HandleFunc("GET /peers/rows", s.peerRows)
 	mux.HandleFunc("GET /network", s.pageNetwork)
 	mux.HandleFunc("GET /mempool", s.pageMempool)
+	mux.HandleFunc("GET /mempool/rows", s.mempoolRows)
 	mux.HandleFunc("GET /blocks", s.pageBlocks)
 	mux.HandleFunc("GET /block/{id}", s.pageBlock)
 	mux.HandleFunc("GET /tx/{hash}", s.pageTx)
@@ -62,6 +64,7 @@ type peersData struct {
 	Connections result[[]rpc.Connection]
 	Bans        result[[]rpc.Ban]
 	PeerList    result[*rpc.PeerList]
+	White, Gray rowsPage[rpc.Peer]
 	Public      result[*rpc.PublicNodes]
 	OutLimit    uint32
 	InLimit     uint32
@@ -81,6 +84,13 @@ func (s *Server) pagePeers(w http.ResponseWriter, r *http.Request) {
 		conns := slices.Clone(d.Connections.V)
 		sort.SliceStable(conns, func(i, j int) bool { return conns[i].LiveTime > conns[j].LiveTime })
 		d.Connections.V = conns
+	}
+	if d.PeerList.Err == nil {
+		q := r.URL.Query()
+		d.White = peerPage("white", d.PeerList.V.WhiteList, q.Get("white_after"))
+		d.Gray = peerPage("gray", d.PeerList.V.GrayList, q.Get("gray_after"))
+		// Opened from a "Next" link (no JavaScript): show that list expanded.
+		d.White.Extra, d.Gray.Extra = q.Has("white_after"), q.Has("gray_after")
 	}
 	d.OutLimit, d.InLimit, d.LimitsErr = s.rpc.PeerLimits(ctx)
 	s.render(w, r, "peers", view{Title: "Peers", Live: true, Data: d})
@@ -119,6 +129,7 @@ func (s *Server) pageNetwork(w http.ResponseWriter, r *http.Request) {
 type mempoolData struct {
 	Stats   result[*rpc.PoolStats]
 	Pool    result[*rpc.TransactionPool]
+	Rows    rowsPage[rpc.PoolTx]
 	Backlog result[[]rpc.BacklogEntry]
 	// Fee-rate summary of the backlog, piconero per byte.
 	FeeRateMin, FeeRateMed, FeeRateMax uint64
@@ -132,14 +143,9 @@ func (s *Server) pageMempool(w http.ResponseWriter, r *http.Request) {
 		Pool:    try(s.rpc.GetTransactionPool(ctx)),
 		Backlog: try(s.rpc.GetTxpoolBacklog(ctx)),
 	}
+	after := r.URL.Query().Get("after")
 	if d.Pool.Err == nil {
-		// Results come from the shared cache: sort a copy.
-		pool := *d.Pool.V
-		pool.Transactions = slices.Clone(pool.Transactions)
-		sort.SliceStable(pool.Transactions, func(i, j int) bool {
-			return pool.Transactions[i].ReceiveTime > pool.Transactions[j].ReceiveTime
-		})
-		d.Pool.V = &pool
+		d.Rows = poolPage(d.Pool.V.Transactions, after)
 	}
 	if d.Backlog.Err == nil && len(d.Backlog.V) > 0 {
 		rates := make([]uint64, 0, len(d.Backlog.V))
@@ -158,7 +164,8 @@ func (s *Server) pageMempool(w http.ResponseWriter, r *http.Request) {
 			d.HistoMax = max(d.HistoMax, h.Txs)
 		}
 	}
-	s.render(w, r, "mempool", view{Title: "Mempool", Live: true, Data: d})
+	// A later batch opened without JavaScript is a snapshot: don't refresh it.
+	s.render(w, r, "mempool", view{Title: "Mempool", Live: after == "", Data: d})
 }
 
 // ---- Blocks ----

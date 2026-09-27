@@ -107,7 +107,8 @@
     const a = document.activeElement;
     return (live.contains(a) && a.matches("input, select, textarea"))
       || $$("input[type=checkbox]:checked", live).length > 0
-      || $("tr[data-extra], .more-rows.htmx-request", live) !== null;
+      || $("tr[data-extra], .more-rows.htmx-request", live) !== null
+      || Date.now() - scrolledAt < 1500;
   }
 
   function refresh(force) {
@@ -127,6 +128,33 @@
     tick();
     htmx.ajax("GET", location.pathname + location.search, { target: "#live", swap: "innerHTML" });
   }
+
+  // A refresh replaces the section's HTML, which would reset every scroll
+  // box to its start and reopen closed <details>. Carry both across the
+  // swap, matching elements by their position in the section. (afterSwap
+  // fires more than once per refresh, so restoring is idempotent.)
+  let kept = null;
+  document.addEventListener("htmx:beforeSwap", (e) => {
+    if (!live || e.detail.target !== live) return;
+    kept = {
+      scroll: $$(".scroll", live).map((el) => [el.scrollLeft, el.scrollTop]),
+      open: $$("details", live).map((el) => el.open),
+    };
+  });
+  document.addEventListener("htmx:afterSwap", (e) => {
+    if (!live || e.detail.target !== live || !kept) return;
+    $$(".scroll", live).forEach((el, i) => {
+      if (kept.scroll[i]) [el.scrollLeft, el.scrollTop] = kept.scroll[i];
+    });
+    $$("details", live).forEach((el, i) => {
+      if (i < kept.open.length) el.open = kept.open[i];
+    });
+  });
+
+  // Don't swap a table out from under someone scrolling it: a swap would
+  // cut a touch scroll short.
+  let scrolledAt = 0;
+  live && live.addEventListener("scroll", () => { scrolledAt = Date.now(); }, { capture: true, passive: true });
 
   document.addEventListener("htmx:afterRequest", (e) => {
     if (!live || e.detail.target !== live || !inflight) return;

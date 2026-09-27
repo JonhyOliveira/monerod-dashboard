@@ -33,12 +33,15 @@ type Server struct {
 	auth    *auth
 	pages   *pageSet
 	now     func() time.Time
+	// long is the daemon without an RPC timeout, for background jobs.
+	long  *rpc.Client
+	prune job // checking or pruning the blockchain
 }
 
 // New returns a Server. Reads go through node's cache; run node.Run
 // alongside so it stays fresh.
 func New(node *rpc.Node, cfg Config) *Server {
-	s := &Server{rpc: node, refresh: cfg.Refresh, now: time.Now}
+	s := &Server{rpc: node, refresh: cfg.Refresh, now: time.Now, long: node.Client.WithTimeout(0)}
 	if s.refresh <= 0 {
 		s.refresh = 5 * time.Second
 	}

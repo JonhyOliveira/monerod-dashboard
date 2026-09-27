@@ -83,6 +83,7 @@ func (s *Server) routeActions(mux *http.ServeMux) {
 		"set_log_categories": s.actSetLogCategories,
 		"save_bc":            s.actSaveBC,
 		"flush_cache":        s.actFlushCache,
+		"prune_check":        s.actPruneCheck,
 		"prune_blockchain":   s.actPrune,
 		"pop_blocks":         s.actPopBlocks,
 		"update_check":       s.actUpdateCheck,
@@ -392,15 +393,46 @@ func (s *Server) actFlushCache(ctx context.Context, f form) (string, error) {
 	return "Cache flushed.", nil
 }
 
+// pruneOutcome describes a prune_blockchain answer.
+func pruneOutcome(res *rpc.PruneResult) string {
+	if res.Pruned {
+		return fmt.Sprintf("The blockchain is pruned (pruning seed %d).", res.PruningSeed)
+	}
+	return "The blockchain is not pruned: the full chain is stored."
+}
+
+// Both run in the background: monerod verifies or rewrites the whole
+// database, which takes minutes (check) to hours (prune) on mainnet.
+
+func (s *Server) actPruneCheck(ctx context.Context, f form) (string, error) {
+	ok := s.prune.start("Checking pruning", func(ctx context.Context) (string, error) {
+		res, err := s.long.PruneBlockchain(ctx, true)
+		if err != nil {
+			return "", err
+		}
+		return pruneOutcome(res), nil
+	})
+	if !ok {
+		return "", bad("a pruning check or prune is already running")
+	}
+	return "Checking the blockchain's pruning status. monerod reads the whole database for this, which can take several minutes; the result appears on the Maintenance page.", nil
+}
+
 func (s *Server) actPrune(ctx context.Context, f form) (string, error) {
 	if err := f.confirm("prune"); err != nil {
 		return "", bad("%s", err.Error())
 	}
-	res, err := s.rpc.PruneBlockchain(ctx, false)
-	if err != nil {
-		return "", err
+	ok := s.prune.start("Pruning", func(ctx context.Context) (string, error) {
+		res, err := s.long.PruneBlockchain(ctx, false)
+		if err != nil {
+			return "", err
+		}
+		return pruneOutcome(res), nil
+	})
+	if !ok {
+		return "", bad("a pruning check or prune is already running")
 	}
-	return fmt.Sprintf("Blockchain pruned (pruning seed %d).", res.PruningSeed), nil
+	return "Pruning started. It can take hours on mainnet; progress is shown on the Maintenance page, and monerod keeps going if you close it.", nil
 }
 
 func (s *Server) actPopBlocks(ctx context.Context, f form) (string, error) {

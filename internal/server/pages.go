@@ -408,12 +408,13 @@ func (s *Server) pageMining(w http.ResponseWriter, r *http.Request) {
 
 type maintenanceData struct {
 	Info  *rpc.GetInfoResult
-	Prune result[*rpc.PruneResult]
+	Prune jobState
 }
 
 func (s *Server) pageMaintenance(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	d := maintenanceData{Prune: try(s.rpc.PruneBlockchain(ctx, true))}
+	d := maintenanceData{Prune: s.prune.state()}
 	d.Info, _ = s.rpc.GetInfo(ctx)
-	s.render(w, r, "maintenance", view{Title: "Maintenance", Data: d})
+	// Live, so a background job's progress and result appear without a reload.
+	s.render(w, r, "maintenance", view{Title: "Maintenance", Live: true, Data: d})
 }

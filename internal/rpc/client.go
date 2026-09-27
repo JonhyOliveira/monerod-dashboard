@@ -55,6 +55,15 @@ func New(o Options) *Client {
 	}
 }
 
+// WithTimeout returns a client for the same daemon whose requests time out
+// after d instead (0: no timeout, bounded only by the context). For calls
+// that legitimately run for minutes, such as pruning.
+func (c *Client) WithTimeout(d time.Duration) *Client {
+	h := *c.http
+	h.Timeout = d
+	return &Client{base: c.base, http: &h}
+}
+
 // Error is a JSON-RPC level error returned by the daemon.
 type Error struct {
 	Code    int    `json:"code"`

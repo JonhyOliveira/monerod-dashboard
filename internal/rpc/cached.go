@@ -228,15 +228,3 @@ func (n *Node) GetMinerData(ctx context.Context) (*MinerData, error) {
 	v, _, err := cached(ctx, n, "get_miner_data", n.fast, false, n.Client.GetMinerData)
 	return v, err
 }
-
-// PruneBlockchain caches the read-only check; pruning itself goes straight
-// to the daemon.
-func (n *Node) PruneBlockchain(ctx context.Context, check bool) (*PruneResult, error) {
-	if !check {
-		return n.Client.PruneBlockchain(ctx, false)
-	}
-	v, _, err := cached(ctx, n, "prune_blockchain:check", n.slow, false, func(ctx context.Context) (*PruneResult, error) {
-		return n.Client.PruneBlockchain(ctx, true)
-	})
-	return v, err
-}

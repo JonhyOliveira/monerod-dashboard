@@ -56,16 +56,20 @@
 <section class="grid forms">
   <article class="card danger-zone">
     <h2>Prune the blockchain</h2>
-    {{with .Data.Prune}}{{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
-    <p>{{if .Pruned}}Already pruned (seed {{.PruningSeed}}).{{else}}Not pruned: the full blockchain is stored.{{end}}</p>
-    {{if not .Pruned}}
+    {{/* Checking and pruning run in the background (minutes to hours on
+         mainnet); the status refreshes live while one runs. */}}
+    <div id="live" data-live>{{template "live" .}}</div>
     <p class="muted small">Pruning drops about two thirds of the database and <strong>cannot be undone</strong>. The node keeps validating and serving its share of the chain.</p>
-    <form method="post" action="/actions/prune_blockchain" data-action class="inline">
-      {{template "action-fields" $}}
-      <label>Type <code>prune</code> <input name="confirm" required pattern="prune" autocomplete="off" size="6"></label>
-      <button type="submit" class="danger">Prune</button>
+    <form method="post" action="/actions/prune_check" data-action class="inline">
+      {{template "action-fields" .}}
+      <button type="submit" class="secondary"{{if .Data.Prune.Running}} disabled{{end}}>Check pruning status</button>
     </form>
-    {{end}}{{end}}{{end}}{{end}}
+    <p class="muted small">Checking makes monerod read the whole database, which can take several minutes; it runs in the background.</p>
+    <form method="post" action="/actions/prune_blockchain" data-action class="inline">
+      {{template "action-fields" .}}
+      <label>Type <code>prune</code> <input name="confirm" required pattern="prune" autocomplete="off" size="6"></label>
+      <button type="submit" class="danger"{{if .Data.Prune.Running}} disabled{{end}}>Prune</button>
+    </form>
   </article>
 
   <article class="card danger-zone">
@@ -89,4 +93,13 @@
     </form>
   </article>
 </section>
+{{end}}
+
+{{define "live"}}
+{{with .Data.Prune}}
+{{if .Running}}<p class="notice muted">{{.What}}… started {{ago .Started.Unix}}. monerod is working through the database; this page updates when it is done.</p>
+{{else if .Err}}{{template "err" .Err}}<p class="muted small">{{.What}} failed {{ago .Finished.Unix}}.</p>
+{{else if .Result}}<p>{{.Result}}</p><p class="muted small">{{.What}} finished {{ago .Finished.Unix}}.</p>
+{{else}}<p class="muted">Pruning status not checked yet.</p>{{end}}
+{{end}}
 {{end}}

@@ -285,7 +285,7 @@ func TestPagesRenderFixtureData(t *testing.T) {
 		"/blocks":      {`href="/block/130"`, "Chain height 131", "Older →"},
 		"/block/100":   {"Block 100", "275e60f4a94a1719c10b76acc92cb52c26c00c069cf1818aaea54ac98d72f433", "Decoded block"},
 		"/mining":      {"Not mining", "RandomX", "Generate blocks"},
-		"/maintenance": {"Not pruned", "Stop daemon", "Pop blocks"},
+		"/maintenance": {"Pruning status not checked yet", "Check pruning status", "Stop daemon", "Pop blocks"},
 		"/tools":       {"Broadcast a transaction", "1,200,000 pXMR/B"},
 		"/console":     {"console-methods", "get_txpool_backlog"},
 		"/tx/f7e227d5f052446c0f6c71585c44837a27cead91915626618cbca2f28ce43980": {"in pool", "ring size 16", "Relay again"},
@@ -501,7 +501,6 @@ func TestActionsReachDaemon(t *testing.T) {
 		{"set_log_categories", "set_log_categories", url.Values{"categories": {"*:WARNING,net.p2p:DEBUG"}}, `net.p2p:DEBUG`},
 		{"save_bc", "save_bc", nil, ""},
 		{"flush_cache", "flush_cache", url.Values{"bad_txs": {"1"}}, `"bad_blocks":false,"bad_txs":true`},
-		{"prune_blockchain", "prune_blockchain", url.Values{"confirm": {"prune"}}, `"check":false`},
 		{"pop_blocks", "pop_blocks", url.Values{"count": {"10"}, "confirm": {"10"}}, `"nblocks":10`},
 		{"update_check", "update", nil, `"command":"check"`},
 		{"stop_daemon", "stop_daemon", url.Values{"confirm": {"stop"}}, ""},
@@ -624,4 +623,47 @@ func TestBlocksBehindTooltip(t *testing.T) {
 	e.login()
 	_, body := e.get("/")
 	mustContain(t, body, `Syncing (<span class="humanized" title="835.4k blocks behind">835,417</span> blocks behind)`)
+}
+
+// Checking and pruning run in the background, never on page load.
+func TestPruneRunsInBackground(t *testing.T) {
+	e := newEnv(t)
+	e.login()
+	e.get("/maintenance")
+	if n := len(e.daemon.Calls("prune_blockchain")); n != 0 {
+		t.Fatalf("opening the page called prune_blockchain %d times", n)
+	}
+
+	release := make(chan struct{})
+	e.daemon.Handle("prune_blockchain", func(p json.RawMessage) any {
+		<-release
+		return map[string]any{"status": "OK", "pruned": strings.Contains(string(p), `"check":false`), "pruning_seed": 388}
+	})
+	_, body := e.action("prune_check", nil)
+	mustContain(t, body, `class="toast ok"`, "can take several minutes")
+	_, body = e.action("prune_check", nil)
+	mustContain(t, body, "already running")
+
+	_, body = e.get("/maintenance")
+	mustContain(t, body, "Checking pruning… started", "disabled")
+	close(release)
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if _, body = e.get("/maintenance"); strings.Contains(body, "not pruned: the full chain") {
+			break
+		}
+	}
+	mustContain(t, body, "The blockchain is not pruned: the full chain is stored.", "Checking pruning finished")
+
+	_, body = e.action("prune_blockchain", url.Values{"confirm": {"prune"}})
+	mustContain(t, body, "Pruning started")
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if _, body = e.get("/maintenance"); strings.Contains(body, "pruning seed 388") {
+			break
+		}
+	}
+	mustContain(t, body, "The blockchain is pruned (pruning seed 388).")
+	calls := e.daemon.Calls("prune_blockchain")
+	if len(calls) != 2 || !strings.Contains(string(calls[1].Params), `"check":false`) {
+		t.Fatalf("calls = %+v", calls)
+	}
 }

@@ -16,6 +16,8 @@ A single Go binary (standard library only, plus a bundled copy of [htmx](https:/
 
 Pages are rendered on the server. Live sections refresh every few seconds (the ring in the header shows when), and actions post in the background and report back in a toast. Everything also works without JavaScript, with full page loads.
 
+Pages never wait on monerod. The dashboard keeps the latest answer to every read call in memory, and a background loop refreshes it: live data every `-refresh` (5s), slow-changing data (peer lists, consensus, fees) every `-slow-refresh` (1m). The overview's data is always kept warm; other pages' data stays warm while someone has viewed it in the last 10 minutes. Actions bypass the cache and clear it, so their effect shows immediately.
+
 ## Security
 
 The dashboard can stop, prune and reconfigure your node, so **the whole dashboard sits behind a password login**:
@@ -96,7 +98,8 @@ Alongside a `monerod` service on the same network:
 | `-admin-password-file` | `DASHBOARD_ADMIN_PASSWORD_FILE` |                          | File holding the dashboard password                  |
 | `-insecure-no-auth`    |                                 | off                      | Disable the login entirely                           |
 | `-listen`              | `DASHBOARD_LISTEN`              | `127.0.0.1:8080`         | Address the dashboard listens on                     |
-| `-refresh`             |                                 | `5s`                     | Refresh interval of live sections                    |
+| `-refresh`             |                                 | `5s`                     | Refresh interval of live data and live sections      |
+| `-slow-refresh`        |                                 | `1m`                     | Refresh interval of slow-changing data               |
 | `-rpc-timeout`         |                                 | `30s`                    | Timeout for each RPC request                         |
 
 Prefer environment variables or the password file over flags, so passwords don't show up in `ps`.
@@ -149,7 +152,7 @@ Layout:
 
 ```
 cmd/monerod-dashboard/     entry point, flags
-internal/rpc/              typed monerod RPC client + digest auth
+internal/rpc/              typed monerod RPC client, digest auth, cache
 internal/rpc/rpctest/      fake monerod for tests
 internal/status/           overview status and warnings
 internal/server/           handlers, auth, actions

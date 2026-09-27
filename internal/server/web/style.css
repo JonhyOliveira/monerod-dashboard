@@ -32,6 +32,8 @@ body {
   font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
+/* The header and section tabs stay pinned to the top while the page scrolls. */
+.masthead { position: sticky; top: 0; z-index: 5; }
 .topbar {
   display: flex;
   flex-wrap: wrap;
@@ -186,11 +188,7 @@ dd.big { font-size: 26px; font-weight: 600; }
 .search input { width: 100%; }
 .logout { margin: 0; }
 
-/* The section tabs stay pinned to the top while the page scrolls. */
 .tabs {
-  position: sticky;
-  top: 0;
-  z-index: 5;
   display: flex;
   gap: 2px;
   padding: 0 16px;

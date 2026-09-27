@@ -13,6 +13,7 @@
   {{if .Live}}<noscript><meta http-equiv="refresh" content="{{.RefreshSeconds}}"></noscript>{{end}}
 </head>
 <body hx-headers='{"X-CSRF-Token": "{{.CSRF}}"}'>
+  <div class="masthead">
   <header class="topbar">
     <div class="brand">
       <a href="/" class="logo">monerod</a>
@@ -43,6 +44,7 @@
     {{$nav := .Nav}}
     {{range nav}}<a href="{{.Href}}"{{if eq .Key $nav}} aria-current="page"{{end}}>{{.Label}}</a>{{end}}
   </nav>
+  </div>
 
   <div id="toasts" class="toasts" aria-live="polite">
     {{range .Flashes}}{{template "toast" .}}{{end}}

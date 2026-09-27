@@ -1,0 +1,71 @@
+{
+  "id": "0",
+  "jsonrpc": "2.0",
+  "result": {
+    "credits": 0,
+    "height": 131,
+    "next_needed_pruning_seed": 1,
+    "overview": "[]",
+    "peers": [{
+      "info": {
+        "address": "127.0.0.1:55448",
+        "address_type": 1,
+        "avg_download": 0,
+        "avg_upload": 0,
+        "connection_id": "7ebba356df2945bf801e10bd14f16ebe",
+        "current_download": 1,
+        "current_upload": 0,
+        "height": 1,
+        "host": "127.0.0.1",
+        "incoming": true,
+        "ip": "127.0.0.1",
+        "live_time": 53,
+        "local_ip": false,
+        "localhost": true,
+        "peer_id": "db688bb1f9c37e31",
+        "port": "55448",
+        "pruning_seed": 0,
+        "recv_count": 15932,
+        "recv_idle_time": 33,
+        "rpc_credits_per_hash": 0,
+        "rpc_port": 0,
+        "send_count": 33350,
+        "send_idle_time": 30,
+        "state": "normal",
+        "support_flags": 1
+      }
+    },{
+      "info": {
+        "address": "127.0.0.1:38090",
+        "address_type": 1,
+        "avg_download": 0,
+        "avg_upload": 0,
+        "connection_id": "b073447f3fca49379888a03dc790c301",
+        "current_download": 1,
+        "current_upload": 2,
+        "height": 1,
+        "host": "127.0.0.1",
+        "incoming": false,
+        "ip": "127.0.0.1",
+        "live_time": 55,
+        "local_ip": false,
+        "localhost": true,
+        "peer_id": "db688bb1f9c37e31",
+        "port": "38090",
+        "pruning_seed": 0,
+        "recv_count": 18028,
+        "recv_idle_time": 38,
+        "rpc_credits_per_hash": 0,
+        "rpc_port": 0,
+        "send_count": 33598,
+        "send_idle_time": 34,
+        "state": "normal",
+        "support_flags": 1
+      }
+    }],
+    "status": "OK",
+    "target_height": 0,
+    "top_hash": "",
+    "untrusted": false
+  }
+}

@@ -1,0 +1,154 @@
+{{define "page"}}
+{{$d := .Data}}{{$f := $d.Form}}
+{{/* Each tool is a GET form (POST for broadcasting). With JavaScript the
+     result is swapped into the tool's card; without it the page reloads. */}}
+
+<section class="grid forms">
+  <article class="card" id="tool-send">
+    <h2>Broadcast a transaction</h2>
+    <form method="post" action="/tools" class="stack" hx-post="/tools" hx-select="#tool-send" hx-target="#tool-send" hx-swap="outerHTML">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="op" value="send_raw_tx">
+      <label>Signed transaction (hex) <textarea name="tx_as_hex" rows="4" required class="mono" spellcheck="false">{{if eq $d.Op "send_raw_tx"}}{{call $f "tx_as_hex"}}{{end}}</textarea></label>
+      <label class="check"><input type="checkbox" name="do_sanity_checks" value="1" checked> Sanity checks</label>
+      <label class="check"><input type="checkbox" name="do_not_relay" value="1"> Keep in this pool only (don't relay)</label>
+      <button type="submit">Broadcast</button>
+    </form>
+    {{if eq $d.Op "send_raw_tx"}}{{if $d.Err}}{{template "err" $d.Err}}{{end}}{{with $d.SendRaw}}
+      {{if not $d.Err}}<p class="notice ok">Accepted{{if .NotRelayed}}, not relayed{{end}}.</p>{{end}}
+      {{if .Reason}}<p class="muted small">Reason: {{.Reason}}</p>{{end}}
+      <ul class="flags">
+        {{if .DoubleSpend}}<li>double spend</li>{{end}}{{if .FeeTooLow}}<li>fee too low</li>{{end}}{{if .InvalidInput}}<li>invalid input</li>{{end}}
+        {{if .InvalidOutput}}<li>invalid output</li>{{end}}{{if .LowMixin}}<li>ring size too small</li>{{end}}{{if .Overspend}}<li>overspend</li>{{end}}
+        {{if .SanityCheckFailed}}<li>sanity check failed</li>{{end}}{{if .TooBig}}<li>too big</li>{{end}}{{if .TooFewOutputs}}<li>too few outputs</li>{{end}}
+        {{if .TxExtraTooBig}}<li>tx_extra too big</li>{{end}}{{if .NonzeroUnlockTime}}<li>non-zero unlock time</li>{{end}}
+      </ul>
+    {{end}}{{end}}
+  </article>
+
+  <article class="card" id="tool-ki">
+    <h2>Key image status</h2>
+    <form method="get" action="/tools" class="stack" hx-get="/tools" hx-select="#tool-ki" hx-target="#tool-ki" hx-swap="outerHTML">
+      <input type="hidden" name="op" value="key_images">
+      <label>Key images (one per line) <textarea name="key_images" rows="3" required class="mono" spellcheck="false">{{if eq $d.Op "key_images"}}{{call $f "key_images"}}{{end}}</textarea></label>
+      <button type="submit" class="secondary">Check</button>
+    </form>
+    {{if eq $d.Op "key_images"}}{{if $d.Err}}{{template "err" $d.Err}}{{end}}
+    {{if $d.KeyImages}}<table class="table"><tbody>{{range $d.KeyImages}}<tr><td class="mono">{{short .KeyImage}}</td><td>{{.Status}}</td></tr>{{end}}</tbody></table>{{end}}{{end}}
+  </article>
+
+  <article class="card" id="tool-outs">
+    <h2>Output lookup</h2>
+    <form method="get" action="/tools" class="stack" hx-get="/tools" hx-select="#tool-outs" hx-target="#tool-outs" hx-swap="outerHTML">
+      <input type="hidden" name="op" value="outs">
+      <label>Amount (atomic units, 0 for RingCT) <input name="amount" type="number" min="0" value="{{if eq $d.Op "outs"}}{{call $f "amount"}}{{else}}0{{end}}"></label>
+      <label>Global indices <input name="indices" required placeholder="1, 2, 3" value="{{if eq $d.Op "outs"}}{{call $f "indices"}}{{end}}"></label>
+      <button type="submit" class="secondary">Look up</button>
+    </form>
+    {{if eq $d.Op "outs"}}{{if $d.Err}}{{template "err" $d.Err}}{{end}}
+    {{if $d.Outs}}<div class="scroll"><table class="table">
+      <thead><tr><th class="num">Height</th><th>Key</th><th>Tx</th><th>Unlocked</th></tr></thead>
+      <tbody>{{range $d.Outs}}<tr><td class="num"><a href="/block/{{.Height}}">{{int .Height}}</a></td><td class="mono">{{short .Key}}</td><td class="mono"><a href="/tx/{{.TxID}}">{{short .TxID}}</a></td><td>{{yesno .Unlocked}}</td></tr>{{end}}</tbody>
+    </table></div>{{end}}{{end}}
+  </article>
+
+  <article class="card" id="tool-hist">
+    <h2>Output histogram</h2>
+    <form method="get" action="/tools" class="stack" hx-get="/tools" hx-select="#tool-hist" hx-target="#tool-hist" hx-swap="outerHTML">
+      <input type="hidden" name="op" value="histogram">
+      <label>Amounts (atomic units; empty for all) <input name="amounts" placeholder="0" value="{{if eq $d.Op "histogram"}}{{call $f "amounts"}}{{end}}"></label>
+      <div class="row">
+        <label>Min count <input name="min_count" type="number" min="0" value="0"></label>
+        <label>Max count <input name="max_count" type="number" min="0" value="0"></label>
+        <label>Recent cutoff (unix time) <input name="recent_cutoff" type="number" min="0" value="0"></label>
+      </div>
+      <label class="check"><input type="checkbox" name="unlocked" value="1"> Unlocked outputs only</label>
+      <button type="submit" class="secondary">Get histogram</button>
+    </form>
+    {{if eq $d.Op "histogram"}}{{if $d.Err}}{{template "err" $d.Err}}{{end}}
+    {{if $d.Histogram}}<div class="scroll"><table class="table">
+      <thead><tr><th class="num">Amount</th><th class="num">Total</th><th class="num">Unlocked</th><th class="num">Recent</th></tr></thead>
+      <tbody>{{range $d.Histogram}}<tr><td class="num">{{if .Amount}}{{xmr .Amount}}{{else}}RingCT{{end}}</td><td class="num">{{int .TotalInstances}}</td><td class="num">{{int .UnlockedInstances}}</td><td class="num">{{int .RecentInstances}}</td></tr>{{end}}</tbody>
+    </table></div>{{end}}{{end}}
+  </article>
+
+  <article class="card" id="tool-dist">
+    <h2>Output distribution</h2>
+    <form method="get" action="/tools" class="stack" hx-get="/tools" hx-select="#tool-dist" hx-target="#tool-dist" hx-swap="outerHTML">
+      <input type="hidden" name="op" value="distribution">
+      <label>Amounts <input name="amounts" value="{{if eq $d.Op "distribution"}}{{call $f "amounts"}}{{else}}0{{end}}"></label>
+      <div class="row">
+        <label>From height <input name="from_height" type="number" min="0" value="{{if eq $d.Op "distribution"}}{{call $f "from_height"}}{{else}}0{{end}}"></label>
+        <label>To height (0 = tip) <input name="to_height" type="number" min="0" value="{{if eq $d.Op "distribution"}}{{call $f "to_height"}}{{else}}0{{end}}"></label>
+      </div>
+      <label class="check"><input type="checkbox" name="cumulative" value="1"> Cumulative</label>
+      <button type="submit" class="secondary">Get distribution</button>
+    </form>
+    {{if eq $d.Op "distribution"}}{{if $d.Err}}{{template "err" $d.Err}}{{end}}
+    {{range $d.Distrib}}
+      <p class="small">{{if .Amount}}{{xmr .Amount}}{{else}}RingCT{{end}}: {{int .Total}} outputs over {{.Blocks}} blocks from height {{int .StartHeight}} (base {{int .Base}}). Last {{len .Rows}} blocks:</p>
+      <div class="scroll short"><table class="table"><tbody>{{range .Rows}}<tr><td class="num">{{int .Height}}</td><td class="num">{{int .Count}}</td></tr>{{end}}</tbody></table></div>
+    {{end}}{{end}}
+  </article>
+
+  <article class="card" id="tool-emission">
+    <h2>Emission and fees</h2>
+    <form method="get" action="/tools" class="stack" hx-get="/tools" hx-select="#tool-emission" hx-target="#tool-emission" hx-swap="outerHTML">
+      <input type="hidden" name="op" value="coinbase_sum">
+      <div class="row">
+        <label>From height <input name="height" type="number" min="0" required value="{{if eq $d.Op "coinbase_sum"}}{{call $f "height"}}{{else}}0{{end}}"></label>
+        <label>Blocks <input name="count" type="number" min="1" required value="{{if eq $d.Op "coinbase_sum"}}{{call $f "count"}}{{else}}1000{{end}}"></label>
+      </div>
+      <button type="submit" class="secondary">Sum coinbase</button>
+    </form>
+    {{if eq $d.Op "coinbase_sum"}}{{if $d.Err}}{{template "err" $d.Err}}{{end}}{{with $d.Coinbase}}
+      <dl><div><dt>Emitted</dt><dd>{{widexmr .WideEmissionAmount}}</dd></div><div><dt>Fees</dt><dd>{{widexmr .WideFeeAmount}}</dd></div></dl>
+    {{end}}{{end}}
+  </article>
+
+  <article class="card" id="tool-fee">
+    <h2>Fee estimate</h2>
+    {{with $d.Fee}}{{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
+    <dl>{{range $i, $fee := .Fees}}<div><dt>{{feelabel $i}}</dt><dd>{{int $fee}} pXMR/B</dd></div>{{end}}</dl>
+    <p class="muted small">Base fee {{int .Fee}} pXMR/B; fees are rounded to multiples of {{int .QuantizationMask}}.</p>
+    {{end}}{{end}}{{end}}
+  </article>
+
+  <article class="card" id="tool-hash">
+    <h2>Block hash by height</h2>
+    <form method="get" action="/tools" class="inline" hx-get="/tools" hx-select="#tool-hash" hx-target="#tool-hash" hx-swap="outerHTML">
+      <input type="hidden" name="op" value="block_hash">
+      <label>Height <input name="height" type="number" min="0" required value="{{if eq $d.Op "block_hash"}}{{call $f "height"}}{{end}}"></label>
+      <button type="submit" class="secondary">Get</button>
+    </form>
+    {{if eq $d.Op "block_hash"}}{{if $d.Err}}{{template "err" $d.Err}}{{end}}{{with $d.BlockHash}}<p class="hash mono"><a href="/block/{{.}}">{{.}}</a></p>{{end}}{{end}}
+  </article>
+
+  <article class="card" id="tool-loose">
+    <h2>Find txids by prefix</h2>
+    <form method="get" action="/tools" class="stack" hx-get="/tools" hx-select="#tool-loose" hx-target="#tool-loose" hx-swap="outerHTML">
+      <input type="hidden" name="op" value="txids_loose">
+      <label>Template txid <input name="txid_template" required minlength="64" maxlength="64" class="mono" spellcheck="false" value="{{if eq $d.Op "txids_loose"}}{{call $f "txid_template"}}{{end}}"></label>
+      <label>Matching bits <input name="num_matching_bits" type="number" min="1" max="256" value="{{if eq $d.Op "txids_loose"}}{{call $f "num_matching_bits"}}{{else}}16{{end}}"></label>
+      <button type="submit" class="secondary">Search</button>
+    </form>
+    {{if eq $d.Op "txids_loose"}}{{if $d.Err}}{{template "err" $d.Err}}{{else if not $d.TxIDs}}<p class="muted">No matches.</p>{{end}}
+    <ul class="hashes">{{range $d.TxIDs}}<li class="mono"><a href="/tx/{{.}}">{{.}}</a></li>{{end}}</ul>{{end}}
+  </article>
+
+  <article class="card" id="tool-pow">
+    <h2>Calculate PoW hash</h2>
+    <form method="get" action="/tools" class="stack" hx-get="/tools" hx-select="#tool-pow" hx-target="#tool-pow" hx-swap="outerHTML">
+      <input type="hidden" name="op" value="calc_pow">
+      <div class="row">
+        <label>Major version <input name="major_version" type="number" min="1" max="255" value="16"></label>
+        <label>Height <input name="height" type="number" min="0" required value="{{if eq $d.Op "calc_pow"}}{{call $f "height"}}{{end}}"></label>
+      </div>
+      <label>Hashing blob (hex) <textarea name="block_blob" rows="2" required class="mono" spellcheck="false">{{if eq $d.Op "calc_pow"}}{{call $f "block_blob"}}{{end}}</textarea></label>
+      <label>Seed hash <input name="seed_hash" required minlength="64" maxlength="64" class="mono" spellcheck="false" value="{{if eq $d.Op "calc_pow"}}{{call $f "seed_hash"}}{{end}}"></label>
+      <button type="submit" class="secondary">Calculate</button>
+    </form>
+    {{if eq $d.Op "calc_pow"}}{{if $d.Err}}{{template "err" $d.Err}}{{end}}{{with $d.PowHash}}<p class="hash mono">{{.}}</p>{{end}}{{end}}
+  </article>
+</section>
+{{end}}

@@ -1,0 +1,79 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · monerod</title>
+  {{/* No eval, no inline <script> execution and no injected <style>, so a strict CSP holds. */}}
+  <meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false,"historyCacheSize":0,"defaultSwapStyle":"innerHTML"}'>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/vendor/htmx-2.0.11.min.js" defer></script>
+  <script src="/app.js" defer></script>
+  {{if .Live}}<noscript><meta http-equiv="refresh" content="{{.RefreshSeconds}}"></noscript>{{end}}
+</head>
+<body hx-headers='{"X-CSRF-Token": "{{.CSRF}}"}'>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/" class="logo">monerod</a>
+      {{template "header-badges" .Header}}
+    </div>
+    <form class="search" action="/search" method="get" role="search">
+      <input type="search" name="q" placeholder="Height, block hash or tx hash" aria-label="Search blocks and transactions" autocomplete="off" spellcheck="false">
+    </form>
+    <div class="meta">
+      {{template "header-meta" .Header}}
+      {{if .Live}}
+      <button id="refresh" class="refresh counting" type="button" style="--refresh-duration: {{.RefreshSeconds}}s"
+              title="Next refresh in {{.RefreshSeconds}}s" aria-label="Next refresh in {{.RefreshSeconds}}s">
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <circle class="track" cx="10" cy="10" r="8"/>
+          <circle class="arc" cx="10" cy="10" r="8"/>
+        </svg>
+        <span class="refresh-text" aria-hidden="true">{{.RefreshSeconds}}s</span>
+      </button>
+      {{end}}
+      <form method="post" action="/logout" class="logout">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <button type="submit" class="link">Log out</button>
+      </form>
+    </div>
+  </header>
+  <nav class="tabs" aria-label="Sections">
+    {{$nav := .Nav}}
+    {{range nav}}<a href="{{.Href}}"{{if eq .Key $nav}} aria-current="page"{{end}}>{{.Label}}</a>{{end}}
+  </nav>
+
+  <div id="toasts" class="toasts" aria-live="polite">
+    {{range .Flashes}}{{template "toast" .}}{{end}}
+  </div>
+
+  <main>
+    {{template "page" .}}
+  </main>
+</body>
+</html>
+{{end}}
+
+{{/* Header parts that live refreshes replace out of band. */}}
+{{define "header-badges"}}<span id="hdr-badges" class="badges">{{template "header-badges-inner" .}}</span>{{end}}
+{{define "header-meta"}}<span id="hdr-meta" class="hdr-meta">{{template "header-meta-inner" .}}</span>{{end}}
+
+{{/* Response to a live refresh: the #live contents plus header updates. */}}
+{{define "live-response"}}
+{{template "live" .}}
+<span id="hdr-badges" class="badges" hx-swap-oob="true">{{template "header-badges-inner" .Header}}</span>
+<span id="hdr-meta" class="hdr-meta" hx-swap-oob="true">{{template "header-meta-inner" .Header}}</span>
+{{range .Flashes}}<div hx-swap-oob="afterbegin:#toasts">{{template "toast" .}}</div>{{end}}
+{{end}}
+
+{{define "header-badges-inner"}}
+  {{if .OK}}<span class="badge">{{.Nettype}}</span>{{end}}
+  {{if .Restricted}}<span class="badge muted" title="Connected to a restricted RPC port: management features are unavailable.">restricted RPC</span>{{end}}
+  {{if not .OK}}<span class="badge err">unreachable</span>{{end}}
+{{end}}
+
+{{define "header-meta-inner"}}
+  {{if .Version}}<span>v{{.Version}}</span>{{end}}
+  <span class="muted">updated {{ts .Updated.Unix}}</span>
+{{end}}

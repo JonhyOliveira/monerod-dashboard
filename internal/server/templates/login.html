@@ -1,0 +1,24 @@
+{{define "login"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in · monerod</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="login-page">
+  <main class="login">
+    <h1>monerod</h1>
+    <p class="muted">Enter the dashboard password to manage this node.</p>
+    {{if .Error}}<p class="notice error" role="alert">{{.Error}}</p>{{end}}
+    <form method="post" action="/login">
+      <input type="hidden" name="next" value="{{.Next}}">
+      <label for="password">Password</label>
+      <input id="password" type="password" name="password" autocomplete="current-password" required autofocus>
+      <button type="submit" class="primary">Log in</button>
+    </form>
+  </main>
+</body>
+</html>
+{{end}}

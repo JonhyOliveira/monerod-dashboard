@@ -1,10 +1,14 @@
-// Package rpc is a minimal client for monerod's JSON-RPC interface.
+// Package rpc is a client for monerod's JSON RPC interface: the JSON-RPC
+// methods under /json_rpc and the "other" JSON endpoints such as
+// /get_transactions. The binary (.bin) endpoints are not supported; each has
+// a JSON equivalent.
 package rpc
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,8 +18,8 @@ import (
 
 // Client talks to a single monerod instance.
 type Client struct {
-	endpoint string
-	http     *http.Client
+	base string
+	http *http.Client
 }
 
 // Options configures a Client.
@@ -43,8 +47,8 @@ func New(o Options) *Client {
 		rt = newDigestTransport(o.User, o.Pass, rt)
 	}
 	return &Client{
-		endpoint: strings.TrimRight(o.URL, "/") + "/json_rpc",
-		http:     &http.Client{Timeout: o.Timeout, Transport: rt},
+		base: strings.TrimRight(o.URL, "/"),
+		http: &http.Client{Timeout: o.Timeout, Transport: rt},
 	}
 }
 
@@ -56,41 +60,63 @@ type Error struct {
 
 func (e *Error) Error() string { return fmt.Sprintf("rpc error %d: %s", e.Code, e.Message) }
 
-// Call invokes a JSON-RPC method and decodes its result into out.
+// ErrUnsupported means the daemon does not offer the method: it is too old,
+// or the method is disabled on a restricted RPC port.
+var ErrUnsupported = errors.New("not supported by this daemon (older version or restricted RPC)")
+
+// StatusError is a response whose "status" field is not "OK".
+type StatusError struct {
+	Method, Status string
+}
+
+func (e *StatusError) Error() string { return fmt.Sprintf("%s: %s", e.Method, e.Status) }
+
+// Status is embedded in every result that carries monerod's status field.
+type Status struct {
+	Status    string `json:"status"`
+	Untrusted bool   `json:"untrusted"`
+}
+
+func (s Status) status() string { return s.Status }
+
+type statusCarrier interface{ status() string }
+
+// checkStatus turns a non-OK status into an error. An empty status is
+// accepted, since some responses omit it.
+func checkStatus(method string, out any) error {
+	if sc, ok := out.(statusCarrier); ok {
+		if st := sc.status(); st != "" && st != "OK" {
+			return &StatusError{Method: method, Status: st}
+		}
+	}
+	return nil
+}
+
+// Call invokes a JSON-RPC method at /json_rpc and decodes its result into
+// out. params may be nil.
 func (c *Client) Call(ctx context.Context, method string, params, out any) error {
-	body, err := json.Marshal(map[string]any{
-		"jsonrpc": "2.0",
-		"id":      "0",
-		"method":  method,
-		"params":  params,
-	})
+	if params == nil {
+		params = struct{}{}
+	}
+	body, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": "0", "method": method, "params": params})
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
+	raw, err := c.post(ctx, "/json_rpc", method, body)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return fmt.Errorf("%s: %w", method, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
-		return fmt.Errorf("%s: unexpected HTTP status %s", method, resp.Status)
-	}
-
 	var env struct {
 		Result json.RawMessage `json:"result"`
 		Error  *Error          `json:"error"`
 	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 16<<20)).Decode(&env); err != nil {
+	if err := json.Unmarshal(raw, &env); err != nil {
 		return fmt.Errorf("%s: decoding response: %w", method, err)
 	}
 	if env.Error != nil {
+		if env.Error.Code == -32601 { // method not found
+			return fmt.Errorf("%s: %w", method, ErrUnsupported)
+		}
 		return fmt.Errorf("%s: %w", method, env.Error)
 	}
 	if out == nil {
@@ -99,29 +125,73 @@ func (c *Client) Call(ctx context.Context, method string, params, out any) error
 	if err := json.Unmarshal(env.Result, out); err != nil {
 		return fmt.Errorf("%s: decoding result: %w", method, err)
 	}
-	return nil
+	return checkStatus(method, out)
 }
 
-// GetInfo calls get_info.
-func (c *Client) GetInfo(ctx context.Context) (*GetInfoResult, error) {
-	var r GetInfoResult
-	if err := c.Call(ctx, "get_info", nil, &r); err != nil {
-		return nil, err
+// CallPath invokes one of the JSON endpoints outside /json_rpc, such as
+// "/get_transactions". req may be nil.
+func (c *Client) CallPath(ctx context.Context, path string, req, out any) error {
+	if req == nil {
+		req = struct{}{}
 	}
-	if r.Status != "" && r.Status != "OK" {
-		return nil, fmt.Errorf("get_info: daemon status %q", r.Status)
+	body, err := json.Marshal(req)
+	if err != nil {
+		return err
 	}
-	return &r, nil
+	name := strings.TrimPrefix(path, "/")
+	raw, err := c.post(ctx, path, name, body)
+	if err != nil {
+		return err
+	}
+	if out == nil {
+		return nil
+	}
+	if err := json.Unmarshal(raw, out); err != nil {
+		return fmt.Errorf("%s: decoding response: %w", name, err)
+	}
+	return checkStatus(name, out)
 }
 
-// GetLastBlockHeader calls get_last_block_header.
-func (c *Client) GetLastBlockHeader(ctx context.Context) (*BlockHeader, error) {
-	var r getLastBlockHeaderResult
-	if err := c.Call(ctx, "get_last_block_header", nil, &r); err != nil {
+// Raw sends a request and returns the undecoded response body. It backs the
+// dashboard's RPC console. For path "/json_rpc", method and params form a
+// JSON-RPC request; otherwise params is posted as the body.
+func (c *Client) Raw(ctx context.Context, path, method string, params json.RawMessage) ([]byte, error) {
+	if len(params) == 0 {
+		params = json.RawMessage("{}")
+	}
+	body := []byte(params)
+	name := strings.TrimPrefix(path, "/")
+	if path == "/json_rpc" {
+		var err error
+		body, err = json.Marshal(map[string]any{"jsonrpc": "2.0", "id": "0", "method": method, "params": params})
+		if err != nil {
+			return nil, err
+		}
+		name = method
+	}
+	return c.post(ctx, path, name, body)
+}
+
+func (c *Client) post(ctx context.Context, path, name string, body []byte) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, bytes.NewReader(body))
+	if err != nil {
 		return nil, err
 	}
-	if r.Status != "" && r.Status != "OK" {
-		return nil, fmt.Errorf("get_last_block_header: daemon status %q", r.Status)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", name, err)
 	}
-	return &r.BlockHeader, nil
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+	if err != nil {
+		return nil, fmt.Errorf("%s: reading response: %w", name, err)
+	}
+	switch {
+	case resp.StatusCode == http.StatusNotFound:
+		return nil, fmt.Errorf("%s: %w", name, ErrUnsupported)
+	case resp.StatusCode != http.StatusOK:
+		return nil, fmt.Errorf("%s: unexpected HTTP status %s", name, resp.Status)
+	}
+	return raw, nil
 }

@@ -1,0 +1,27 @@
+{{define "page"}}
+{{with .Data}}
+<section class="card" id="console">
+  <h2>RPC console</h2>
+  <p class="muted small">Send any request to monerod's JSON RPC and see the raw answer. Requests go to the daemon exactly as written, including ones that change or stop it.</p>
+  <form method="post" action="/console" class="stack" hx-post="/console" hx-select="#console" hx-target="#console" hx-swap="outerHTML">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <div class="row">
+      <label>Endpoint
+        <input name="endpoint" list="console-paths" value="{{.Endpoint}}" required spellcheck="false" class="mono">
+      </label>
+      <label>JSON-RPC method (for /json_rpc)
+        <input name="method" list="console-methods" value="{{.Method}}" spellcheck="false" class="mono" placeholder="get_info">
+      </label>
+    </div>
+    <datalist id="console-paths"><option value="/json_rpc">{{range .Paths}}<option value="{{.}}">{{end}}</datalist>
+    <datalist id="console-methods">{{range .Methods}}<option value="{{.}}">{{end}}</datalist>
+    <label>Params (JSON) <textarea name="params" rows="6" class="mono" spellcheck="false">{{.Params}}</textarea></label>
+    <button type="submit">Send</button>
+  </form>
+  {{if .Ran}}
+    {{if .Err}}{{template "err" .Err}}{{end}}
+    {{if .Response}}<pre class="code">{{.Response}}</pre>{{end}}
+  {{end}}
+</section>
+{{end}}
+{{end}}

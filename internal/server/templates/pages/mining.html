@@ -1,0 +1,123 @@
+{{define "page"}}
+<div id="live" data-live>{{template "live" .}}</div>
+
+<section class="grid forms">
+  <article class="card">
+    <h2>Start mining</h2>
+    <form method="post" action="/actions/start_mining" data-action class="stack">
+      {{template "action-fields" .}}
+      <label>Payout address
+        <input name="address" required minlength="95" maxlength="106" autocomplete="off" spellcheck="false" placeholder="4…"
+               {{with .Data.Status.V}}{{if .Address}}value="{{.Address}}"{{end}}{{end}}>
+      </label>
+      <label>Threads <input name="threads" type="number" min="1" max="256" value="1" required></label>
+      <label class="check"><input type="checkbox" name="background" value="1"> Background mining (only while the machine is idle)</label>
+      <label class="check"><input type="checkbox" name="ignore_battery" value="1"> Keep mining on battery power</label>
+      <div class="row">
+        <button type="submit">Start</button>
+      </div>
+    </form>
+  </article>
+
+  <article class="card">
+    <h2>Control</h2>
+    <form method="post" action="/actions/stop_mining" data-action class="inline">
+      {{template "action-fields" .}}
+      <button type="submit" class="danger">Stop mining</button>
+    </form>
+    <form method="post" action="/actions/set_log_hash_rate" data-action class="inline">
+      {{template "action-fields" .}}
+      <button type="submit" name="visible" value="1" class="secondary">Log hash rate</button>
+      <button type="submit" name="visible" value="0" class="secondary">Stop logging it</button>
+    </form>
+    <p class="muted small">Hash-rate logging only works while the daemon is mining.</p>
+  </article>
+
+  {{if .Data.Regtest}}
+  <article class="card">
+    <h2>Generate blocks <span class="tag">regtest</span></h2>
+    <form method="post" action="/actions/generate_blocks" data-action class="stack">
+      {{template "action-fields" .}}
+      <label>Reward address <input name="address" required minlength="95" maxlength="106" autocomplete="off" spellcheck="false"></label>
+      <label>Blocks <input name="count" type="number" min="1" max="1000" value="10" required></label>
+      <button type="submit">Generate</button>
+    </form>
+  </article>
+  {{end}}
+</section>
+
+<section class="grid forms">
+  <article class="card">
+    <h2>Block template</h2>
+    <form method="get" action="/mining" class="stack" hx-get="/mining" hx-select="#template-result" hx-target="#template-result" hx-swap="outerHTML">
+      <label>Miner address <input name="template_address" required minlength="95" maxlength="106" value="{{.Data.TplAddr}}" autocomplete="off" spellcheck="false"></label>
+      <label>Reserve size (bytes, max 255) <input name="reserve_size" type="number" min="0" max="255" value="60"></label>
+      <button type="submit" class="secondary">Get template</button>
+    </form>
+    <div id="template-result">
+      {{with .Data}}{{if .TplErr}}{{template "err" .TplErr}}{{end}}{{with .Template}}
+      <dl class="cols">
+        <div><dt>Height</dt><dd>{{int .Height}}</dd></div>
+        <div><dt>Difficulty</dt><dd>{{widehex .WideDifficulty}}</dd></div>
+        <div><dt>Expected reward</dt><dd>{{xmr .ExpectedReward}}</dd></div>
+        <div><dt>Reserved offset</dt><dd>{{.ReservedOffset}}</dd></div>
+        <div><dt>Seed height</dt><dd>{{int .SeedHeight}}</dd></div>
+        <div><dt>Seed hash</dt><dd class="mono">{{short .SeedHash}}</dd></div>
+      </dl>
+      <label>Hashing blob <textarea readonly rows="3" class="mono">{{.BlockhashingBlob}}</textarea></label>
+      <label>Template blob <textarea readonly rows="4" class="mono">{{.BlocktemplateBlob}}</textarea></label>
+      {{end}}{{end}}
+    </div>
+  </article>
+
+  <article class="card">
+    <h2>Submit a block</h2>
+    <form method="post" action="/actions/submit_block" data-action class="stack">
+      {{template "action-fields" .}}
+      <label>Block blob (hex) <textarea name="blob" rows="4" required class="mono" spellcheck="false"></textarea></label>
+      <button type="submit">Submit</button>
+    </form>
+  </article>
+</section>
+{{end}}
+
+{{define "live"}}
+<section class="grid">
+  <article class="card">
+    <h2>Miner</h2>
+    {{with .Data.Status}}{{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
+    <div class="state"><span class="dot {{if .Active}}synchronized{{end}}"></span><span>{{if .Active}}Mining{{else}}Not mining{{end}}</span></div>
+    <dl>
+      <div><dt>Hash rate</dt><dd class="big">{{if .Active}}{{hashrate .Speed}}{{else}}—{{end}}</dd></div>
+      <div><dt>Threads</dt><dd>{{.ThreadsCount}}</dd></div>
+      <div><dt>Algorithm</dt><dd>{{.PowAlgorithm}}</dd></div>
+      <div><dt>Background</dt><dd>{{if .IsBackgroundMiningEnabled}}on (idle ≥ {{.BgIdleThreshold}}%, target {{.BgTarget}}%){{else}}off{{end}}</dd></div>
+    </dl>
+    {{if .Address}}<p class="hash mono small" title="Payout address">{{.Address}}</p>{{end}}
+    {{end}}{{end}}{{end}}
+  </article>
+  <article class="card">
+    <h2>Next block</h2>
+    {{with .Data.MinerData}}{{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
+    <dl>
+      <div><dt>Height</dt><dd>{{int .Height}}</dd></div>
+      <div><dt>Difficulty</dt><dd>{{widehex .Difficulty}}</dd></div>
+      <div><dt>Median weight</dt><dd>{{bytes .MedianWeight}}</dd></div>
+      <div><dt>Candidate txs</dt><dd>{{len .TxBacklog}}</dd></div>
+      <div><dt>Coins generated</dt><dd>{{xmr .AlreadyGeneratedCoins}}</dd></div>
+    </dl>
+    <p class="muted small mono">prev {{short .PrevID}} · seed {{short .SeedHash}}</p>
+    {{end}}{{end}}{{end}}
+  </article>
+  {{with .Data.Status}}{{if not .Err}}{{with .V}}
+  <article class="card">
+    <h2>Reward</h2>
+    <dl>
+      <div><dt>Block reward</dt><dd>{{if .BlockReward}}{{xmr .BlockReward}}{{else}}—{{end}}</dd></div>
+      <div><dt>Network difficulty</dt><dd>{{widehex .WideDifficulty}}</dd></div>
+      <div><dt>Block target</dt><dd>{{.BlockTarget}} s</dd></div>
+    </dl>
+  </article>
+  {{end}}{{end}}{{end}}
+</section>
+{{end}}

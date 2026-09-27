@@ -1,0 +1,75 @@
+{{define "page"}}
+<div id="live" data-live>{{template "live" .}}</div>
+
+<section class="grid forms">
+  <article class="card">
+    <h2>Bandwidth limits</h2>
+    {{with .Data.Limits}}{{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
+    <form method="post" action="/actions/set_limit" data-action class="stack">
+      {{template "action-fields" $}}
+      <label>Download (kB/s) <input name="limit_down" type="number" min="1" required value="{{.LimitDown}}"></label>
+      <label>Upload (kB/s) <input name="limit_up" type="number" min="1" required value="{{.LimitUp}}"></label>
+      <div class="row">
+        <button type="submit">Set limits</button>
+        <button type="submit" name="reset" value="1" class="secondary" formnovalidate>Reset to defaults</button>
+      </div>
+      <p class="muted small">Takes effect immediately and lasts until monerod restarts; use --limit-rate-up / --limit-rate-down to make it permanent.</p>
+    </form>
+    {{end}}{{end}}{{end}}
+  </article>
+</section>
+{{end}}
+
+{{define "live"}}
+<section class="grid">
+  <article class="card">
+    <h2>Current limits</h2>
+    {{with .Data.Limits}}{{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
+    <dl>
+      <div><dt>Download</dt><dd class="big">{{int .LimitDown}} <span class="unit">kB/s</span></dd></div>
+      <div><dt>Upload</dt><dd class="big">{{int .LimitUp}} <span class="unit">kB/s</span></dd></div>
+    </dl>{{end}}{{end}}{{end}}
+  </article>
+  <article class="card">
+    <h2>Traffic since start</h2>
+    {{$now := .Data.Now}}
+    {{with .Data.Net}}{{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
+    <dl>
+      <div><dt>Received</dt><dd>{{bytes .TotalBytesIn}}</dd></div>
+      <div><dt>Sent</dt><dd>{{bytes .TotalBytesOut}}</dd></div>
+      <div><dt>Packets in / out</dt><dd>{{int .TotalPacketsIn}} / {{int .TotalPacketsOut}}</dd></div>
+      <div><dt>Average down / up</dt><dd>{{if gt $now .StartTime}}{{bytes (div .TotalBytesIn (sub64 $now .StartTime))}}/s / {{bytes (div .TotalBytesOut (sub64 $now .StartTime))}}/s{{else}}—{{end}}</dd></div>
+    </dl>
+    <p class="muted small">Counting since {{ts .StartTime}}.</p>{{end}}{{end}}{{end}}
+  </article>
+</section>
+
+{{with .Data.Sync}}
+<section class="card">
+  <h2>Synchronisation</h2>
+  {{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
+  <dl>
+    <div><dt>Height</dt><dd>{{int .Height}}</dd></div>
+    <div><dt>Target</dt><dd>{{if .TargetHeight}}{{int .TargetHeight}}{{else}}synced{{end}}</dd></div>
+    <div><dt>Next pruning seed needed</dt><dd>{{.NextNeededPruningSeed}}</dd></div>
+  </dl>
+  {{if .Peers}}
+  <div class="scroll">
+  <table class="table">
+    <thead><tr><th>Peer</th><th class="num">Their height</th><th>State</th><th class="num">Avg down / up</th><th class="num">Pruning seed</th></tr></thead>
+    <tbody>{{range .Peers}}{{with .Info}}<tr><td class="mono">{{.Address}}</td><td class="num">{{int .Height}}</td><td>{{.State}}</td><td class="num">{{int .AvgDownload}} / {{int .AvgUpload}} kB/s</td><td class="num">{{.PruningSeed}}</td></tr>{{end}}{{end}}</tbody>
+  </table>
+  </div>
+  {{end}}
+  {{if .Spans}}
+  <h3>Spans being downloaded</h3>
+  <table class="table">
+    <thead><tr><th>Peer</th><th class="num">From height</th><th class="num">Blocks</th><th class="num">Size</th><th class="num">Rate</th></tr></thead>
+    <tbody>{{range .Spans}}<tr><td class="mono">{{.RemoteAddress}}</td><td class="num">{{int .StartBlockHeight}}</td><td class="num">{{int .NBlocks}}</td><td class="num">{{bytes .Size}}</td><td class="num">{{bytes .Rate}}/s</td></tr>{{end}}</tbody>
+  </table>
+  {{end}}
+  {{if and .Overview (ne .Overview "[]")}}<p class="muted small mono">Block queue: {{.Overview}}</p>{{end}}
+  {{end}}{{end}}
+</section>
+{{end}}
+{{end}}

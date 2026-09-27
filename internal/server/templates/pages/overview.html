@@ -1,0 +1,108 @@
+{{define "page"}}
+<div id="live" data-live>{{template "live" .}}</div>
+{{end}}
+
+{{define "live"}}
+{{with .Data}}{{$o := .Status}}
+<ul class="warnings"{{if not $o.Warnings}} hidden{{end}}>
+  {{range $o.Warnings}}<li class="{{.Level}}">{{.Message}}</li>{{end}}
+</ul>
+
+<section class="grid{{if not $o.OK}} stale{{end}}">
+  <article class="card wide" id="card-sync">
+    <h2>Sync</h2>
+    <div class="state"><span class="dot {{$o.StateClass}}"></span><span id="state-label">{{$o.StateLabel}}</span></div>
+    <div class="bar"><div class="fill {{$o.SyncBarClass}}" style="{{$o.SyncBarStyle}}"></div></div>
+    <dl>
+      <div><dt>Height</dt><dd id="height">{{$o.Height}}</dd></div>
+      <div><dt>Target</dt><dd>{{$o.TargetHeight}}</dd></div>
+      <div><dt>Progress</dt><dd id="sync-percent">{{$o.SyncPercent}}</dd></div>
+      {{with .Info}}<div><dt>Alt blocks</dt><dd>{{int .AltBlocksCount}}</dd></div>
+      <div><dt>Transactions in chain</dt><dd>{{int .TxCount}}</dd></div>{{end}}
+    </dl>
+    {{with .Sync.V}}{{if .Spans}}
+    <details open>
+      <summary>Downloading {{len .Spans}} span(s)</summary>
+      <table class="table">
+        <thead><tr><th>Peer</th><th class="num">From height</th><th class="num">Blocks</th><th class="num">Size</th><th class="num">Rate</th></tr></thead>
+        <tbody>{{range .Spans}}<tr><td>{{.RemoteAddress}}</td><td class="num">{{int .StartBlockHeight}}</td><td class="num">{{int .NBlocks}}</td><td class="num">{{bytes .Size}}</td><td class="num">{{bytes .Rate}}/s</td></tr>{{end}}</tbody>
+      </table>
+    </details>
+    {{end}}{{end}}
+  </article>
+
+  <article class="card">
+    <h2>Peers <a class="more" href="/peers">manage</a></h2>
+    <dl>
+      <div><dt>Outgoing</dt><dd id="peers-out" class="big">{{$o.PeersOut}}</dd></div>
+      <div><dt>Incoming</dt><dd id="peers-in" class="big">{{$o.PeersIn}}</dd></div>
+      {{with .Info}}<div><dt>RPC clients</dt><dd>{{int .RPCConnectionsCount}}</dd></div>
+      <div><dt>Known peers</dt><dd>{{int .WhitePeerlistSize}} white · {{int .GreyPeerlistSize}} gray</dd></div>{{end}}
+    </dl>
+  </article>
+
+  <article class="card">
+    <h2>Chain <a class="more" href="/blocks">explore</a></h2>
+    <dl>
+      <div><dt>Hashrate</dt><dd id="hashrate">{{$o.Hashrate}}</dd></div>
+      <div><dt>Difficulty</dt><dd id="difficulty">{{$o.Difficulty}}</dd></div>
+      <div><dt>Last block</dt><dd id="last-block">{{$o.LastBlock}}</dd></div>
+    </dl>
+    {{if $o.TopHash}}<p class="hash muted"><a href="/block/{{$o.TopHash}}" title="Top block">{{$o.TopHash}}</a></p>{{end}}
+  </article>
+
+  <article class="card">
+    <h2>Mempool <a class="more" href="/mempool">manage</a></h2>
+    <dl>
+      <div><dt>Transactions</dt><dd id="txpool" class="big">{{$o.TxPool}}</dd></div>
+    </dl>
+  </article>
+
+  <article class="card">
+    <h2>Storage</h2>
+    <dl>
+      <div><dt>Database</dt><dd id="db-size">{{$o.DBSize}}</dd></div>
+      <div><dt>Free space</dt><dd id="free-space">{{$o.FreeSpace}}</dd></div>
+    </dl>
+    <div class="bar"><div class="fill {{$o.DiskBarClass}}" style="{{$o.DiskBarStyle}}"></div></div>
+  </article>
+
+  <article class="card">
+    <h2>Uptime</h2>
+    <dl>
+      <div><dt>Running for</dt><dd id="uptime" class="big">{{$o.Uptime}}</dd></div>
+      <div><dt>Started</dt><dd>{{ts $o.StartTime}}</dd></div>
+    </dl>
+  </article>
+
+  <article class="card">
+    <h2>Traffic <a class="more" href="/network">limits</a></h2>
+    {{with .Net}}{{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
+    <dl>
+      <div><dt>Received</dt><dd>{{bytes .TotalBytesIn}}</dd></div>
+      <div><dt>Sent</dt><dd>{{bytes .TotalBytesOut}}</dd></div>
+      <div><dt>Packets</dt><dd>{{int .TotalPacketsIn}} in · {{int .TotalPacketsOut}} out</dd></div>
+    </dl>{{end}}{{end}}{{else}}<p class="muted">—</p>{{end}}
+  </article>
+
+  <article class="card">
+    <h2>Fees</h2>
+    {{with .Fee}}{{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
+    <dl>
+      {{range $i, $f := .Fees}}<div><dt>{{feelabel $i}}</dt><dd>{{int $f}} pXMR/B</dd></div>{{end}}
+    </dl>{{end}}{{end}}{{end}}
+  </article>
+
+  <article class="card">
+    <h2>Consensus</h2>
+    {{with .HardFork}}{{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
+    <dl>
+      <div><dt>Hard fork</dt><dd>v{{.Version}}{{if .Enabled}}{{else}} (not enabled){{end}}</dd></div>
+      <div><dt>Voting for</dt><dd>v{{.Voting}}</dd></div>
+      <div><dt>Votes</dt><dd>{{int .Votes}} / {{int .Window}}</dd></div>
+    </dl>{{end}}{{end}}{{end}}
+    {{with .Version}}{{if not .Err}}{{with .V}}<p class="muted small">RPC v{{version .Version}}{{if .Release}}, release build{{else}}, development build{{end}}</p>{{end}}{{end}}{{end}}
+  </article>
+</section>
+{{end}}
+{{end}}

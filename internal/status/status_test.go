@@ -13,7 +13,7 @@ var now = time.Unix(1_800_000_000, 0)
 
 func healthy() *rpc.GetInfoResult {
 	return &rpc.GetInfoResult{
-		Status:                   "OK",
+		Status:                   rpc.Status{Status: "OK"},
 		Height:                   3_000_000,
 		TargetHeight:             0,
 		Synchronized:             true,

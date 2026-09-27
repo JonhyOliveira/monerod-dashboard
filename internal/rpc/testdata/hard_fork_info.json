@@ -1,0 +1,18 @@
+{
+  "id": "0",
+  "jsonrpc": "2.0",
+  "result": {
+    "credits": 0,
+    "earliest_height": 1,
+    "enabled": true,
+    "state": 0,
+    "status": "OK",
+    "threshold": 0,
+    "top_hash": "",
+    "untrusted": false,
+    "version": 16,
+    "votes": 130,
+    "voting": 16,
+    "window": 131
+  }
+}

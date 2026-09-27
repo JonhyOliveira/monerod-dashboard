@@ -1,0 +1,50 @@
+{{define "page"}}
+{{with .Data}}
+{{if .Err}}<section class="card">{{template "err" .Err}}<p><a href="/blocks">Back to blocks</a></p></section>{{else}}{{with .Block}}{{$h := .BlockHeader}}
+<section class="card">
+  <h2>Block {{int $h.Height}}</h2>
+  <p class="hash mono">{{$h.Hash}}</p>
+  <nav class="pager">
+    {{if $h.Height}}<a href="/block/{{sub $h.Height 1}}">← Previous</a>{{end}}
+    {{if $.Data.HasNext}}<a href="/block/{{add $h.Height 1}}">Next →</a>{{end}}
+  </nav>
+  <dl class="cols">
+    <div><dt>Time</dt><dd>{{ts $h.Timestamp}} ({{ago $h.Timestamp}})</dd></div>
+    <div><dt>Confirmations</dt><dd>{{int $h.Depth}}</dd></div>
+    <div><dt>Transactions</dt><dd>{{int $h.NumTxes}}</dd></div>
+    <div><dt>Reward</dt><dd>{{xmr $h.Reward}}</dd></div>
+    <div><dt>Size / weight</dt><dd>{{bytes $h.BlockSize}} / {{bytes $h.BlockWeight}}</dd></div>
+    <div><dt>Long-term weight</dt><dd>{{bytes $h.LongTermWeight}}</dd></div>
+    <div><dt>Difficulty</dt><dd>{{widehex $h.WideDifficulty}}</dd></div>
+    <div><dt>Cumulative difficulty</dt><dd>{{widehex $h.WideCumulativeDifficulty}}</dd></div>
+    <div><dt>Version</dt><dd>{{$h.MajorVersion}}.{{$h.MinorVersion}}</dd></div>
+    <div><dt>Nonce</dt><dd>{{$h.Nonce}}</dd></div>
+    <div><dt>Previous block</dt><dd class="mono"><a href="/block/{{$h.PrevHash}}">{{short $h.PrevHash}}</a></dd></div>
+    <div><dt>Orphan</dt><dd>{{yesno $h.OrphanStatus}}</dd></div>
+  </dl>
+</section>
+
+<section class="card">
+  <h2>Transactions</h2>
+  <table class="table">
+    <thead><tr><th>Hash</th><th>Type</th></tr></thead>
+    <tbody>
+      <tr><td class="mono"><a href="/tx/{{.MinerTxHash}}">{{.MinerTxHash}}</a></td><td>coinbase</td></tr>
+      {{range .TxHashes}}<tr><td class="mono"><a href="/tx/{{.}}">{{.}}</a></td><td>transfer</td></tr>{{end}}
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <details>
+    <summary>Decoded block (JSON)</summary>
+    <pre class="code">{{$.Data.Pretty}}</pre>
+  </details>
+  <details>
+    <summary>Raw blob ({{len .Blob}} hex characters)</summary>
+    <pre class="code wrap">{{.Blob}}</pre>
+  </details>
+</section>
+{{end}}{{end}}
+{{end}}
+{{end}}

@@ -2,7 +2,26 @@ package server
 
 import (
 	"testing"
+
+	"github.com/jonhyoliveira/monerod-dashboard/internal/status"
 )
+
+func TestFmtXMR(t *testing.T) {
+	for in, want := range map[uint64]string{
+		0:                "0 XMR",
+		1:                "0.000000000001 XMR",
+		2605200000:       "0.0026052 XMR",
+		35175682555881:   "35.175682555881 XMR",
+		4590993534018806: "4,590.993534018806 XMR",
+	} {
+		if got := fmtXMR(in); got != want {
+			t.Errorf("fmtXMR(%d) = %q, want %q", in, got, want)
+		}
+	}
+	if got := fmtWideXMR("0x104f7bfac2e4f6"); got != "4,590.993534018806 XMR" {
+		t.Errorf("fmtWideXMR = %q", got)
+	}
+}
 
 // Expected values are what the matching formatter in web/app.js returns.
 func TestFormatters(t *testing.T) {
@@ -68,7 +87,11 @@ func TestFormatters(t *testing.T) {
 }
 
 func TestSyncPercentFloors(t *testing.T) {
-	p := newPage(StatusResponse{OK: true, Node: &nodeFixture})
+	node := status.Node{
+		State: "syncing", StateLabel: "Syncing (55 blocks behind)",
+		Height: 3212345, TargetHeight: 3212400, BlocksBehind: 55, SyncPercent: 99.99828788444776,
+	}
+	p := newOverview(StatusResponse{OK: true, Node: &node})
 	if p.SyncPercent != "99.99%" {
 		t.Errorf("SyncPercent = %q, want 99.99%%", p.SyncPercent)
 	}

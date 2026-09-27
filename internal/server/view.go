@@ -7,25 +7,19 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/jonhyoliveira/monerod-dashboard/internal/status"
 )
 
-// The formatters below mirror the ones in web/app.js exactly, so the server
-// rendered page and the first client-side render produce identical text.
+// Formatting lives only here: pages are rendered on the server, and live
+// refreshes swap in server-rendered HTML.
 
 const dash = "—"
 
-// page is the view model for templates/index.html.
-type page struct {
-	OK         bool
-	Restricted bool
-	Nettype    string
-	Version    string
-	Updated    string
-	UpdatedISO string
-	Warnings   []status.Warning
+// overview is the view model for the overview page's status cards.
+type overview struct {
+	OK       bool
+	Warnings []status.Warning
 
 	StateClass   string
 	StateLabel   string
@@ -50,26 +44,14 @@ type page struct {
 	DiskBarClass string
 	DiskBarStyle template.CSS
 
-	Uptime     string
-	Started    string
-	StartedISO string
-
-	RefreshSeconds float64
-	RefreshStyle   template.CSS
-
-	// Initial is embedded as JSON so app.js can take over without refetching.
-	Initial StatusResponse
+	Uptime    string
+	StartTime int64
 }
 
-func newPage(s StatusResponse) page {
-	p := page{
-		OK:             s.OK,
-		Warnings:       s.Warnings,
-		Updated:        "updated " + s.FetchedAt.UTC().Format("15:04:05") + " UTC",
-		UpdatedISO:     s.FetchedAt.UTC().Format(time.RFC3339),
-		RefreshSeconds: s.RefreshSeconds,
-		RefreshStyle:   template.CSS(fmt.Sprintf("--refresh-duration: %ss", strconv.FormatFloat(s.RefreshSeconds, 'f', -1, 64))),
-		Initial:        s,
+func newOverview(s StatusResponse) overview {
+	p := overview{
+		OK:       s.OK,
+		Warnings: s.Warnings,
 
 		StateClass:   "unreachable",
 		StateLabel:   "Unreachable",
@@ -80,20 +62,11 @@ func newPage(s StatusResponse) page {
 		Hashrate: dash, Difficulty: dash, LastBlock: dash,
 		TxPool: dash,
 		DBSize: dash, FreeSpace: dash,
-		Uptime: dash, Started: dash,
+		Uptime: dash,
 	}
 	n := s.Node
 	if !s.OK || n == nil {
 		return p
-	}
-
-	p.Restricted = n.Restricted
-	p.Nettype = n.Nettype
-	if p.Nettype == "" {
-		p.Nettype = "unknown"
-	}
-	if n.Version != "" {
-		p.Version = "v" + n.Version
 	}
 
 	p.StateClass = n.State
@@ -138,11 +111,7 @@ func newPage(s StatusResponse) page {
 	if n.UptimeSeconds != 0 {
 		p.Uptime = fmtDuration(n.UptimeSeconds)
 	}
-	if n.StartTime != 0 {
-		t := time.Unix(n.StartTime, 0).UTC()
-		p.Started = t.Format("2006-01-02 15:04") + " UTC"
-		p.StartedISO = t.Format(time.RFC3339)
-	}
+	p.StartTime = n.StartTime
 	return p
 }
 

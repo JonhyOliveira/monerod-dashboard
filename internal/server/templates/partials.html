@@ -1,0 +1,13 @@
+{{define "toast"}}<div class="toast {{.Level}}" role="status">{{.Message}}</div>{{end}}
+
+{{/* A section's error, e.g. a method unavailable on restricted RPC. */}}
+{{define "err"}}<p class="notice {{if unsupported .}}muted{{else}}error{{end}}">{{errmsg .}}</p>{{end}}
+
+{{/* Hidden fields every action form carries. */}}
+{{define "csrf"}}<input type="hidden" name="csrf" value="{{.}}">{{end}}
+
+
+{{/* Hidden fields for an action form. Takes the page view. Forms marked
+     data-action post via htmx (toast + live refresh) when JavaScript runs,
+     and as a normal form with a redirect back otherwise. */}}
+{{define "action-fields"}}<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="return" value="{{.Path}}">{{end}}

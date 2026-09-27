@@ -1,0 +1,18 @@
+{
+  "id": "0",
+  "jsonrpc": "2.0",
+  "result": {
+    "current_height": 131,
+    "hard_forks": [{
+      "height": 0,
+      "hf_version": 1
+    },{
+      "height": 1,
+      "hf_version": 16
+    }],
+    "release": false,
+    "status": "OK",
+    "untrusted": false,
+    "version": 196621
+  }
+}

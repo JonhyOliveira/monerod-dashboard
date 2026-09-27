@@ -1,14 +1,17 @@
-// Command monerod-dashboard serves a web dashboard for a monero daemon.
+// Command monerod-dashboard serves a web dashboard to monitor and manage a
+// monero daemon.
 package main
 
 import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,19 +21,34 @@ import (
 
 func main() {
 	var (
-		rpcURL     = flag.String("rpc-url", envOr("MONEROD_RPC_URL", "http://127.0.0.1:18081"), "monerod RPC base URL (env MONEROD_RPC_URL)")
-		rpcUser    = flag.String("rpc-user", os.Getenv("MONEROD_RPC_USER"), "RPC username for digest auth (env MONEROD_RPC_USER)")
-		rpcPass    = flag.String("rpc-pass", os.Getenv("MONEROD_RPC_PASS"), "RPC password for digest auth (env MONEROD_RPC_PASS)")
-		listen     = flag.String("listen", envOr("DASHBOARD_LISTEN", "127.0.0.1:8080"), "HTTP listen address (env DASHBOARD_LISTEN)")
-		refresh    = flag.Duration("refresh", 5*time.Second, "UI refresh interval")
-		rpcTimeout = flag.Duration("rpc-timeout", 5*time.Second, "timeout for each RPC request")
+		rpcURL       = flag.String("rpc-url", envOr("MONEROD_RPC_URL", "http://127.0.0.1:18081"), "monerod RPC base URL (env MONEROD_RPC_URL)")
+		rpcUser      = flag.String("rpc-user", os.Getenv("MONEROD_RPC_USER"), "RPC username for digest auth (env MONEROD_RPC_USER)")
+		rpcPass      = flag.String("rpc-pass", os.Getenv("MONEROD_RPC_PASS"), "RPC password for digest auth (env MONEROD_RPC_PASS)")
+		listen       = flag.String("listen", envOr("DASHBOARD_LISTEN", "127.0.0.1:8080"), "HTTP listen address (env DASHBOARD_LISTEN)")
+		refresh      = flag.Duration("refresh", 5*time.Second, "refresh interval of live page sections")
+		rpcTimeout   = flag.Duration("rpc-timeout", 30*time.Second, "timeout for each RPC request (some management calls are slow)")
+		password     = flag.String("admin-password", os.Getenv("DASHBOARD_ADMIN_PASSWORD"), "password for the dashboard login (env DASHBOARD_ADMIN_PASSWORD)")
+		passwordFile = flag.String("admin-password-file", os.Getenv("DASHBOARD_ADMIN_PASSWORD_FILE"), "file holding the dashboard password, e.g. a Docker secret (env DASHBOARD_ADMIN_PASSWORD_FILE)")
+		noAuth       = flag.Bool("insecure-no-auth", false, "disable the login: anyone who can reach the dashboard can manage the node")
 	)
 	flag.Parse()
+
+	pw, err := resolvePassword(*password, *passwordFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if pw == "" && !*noAuth {
+		log.Fatal("no dashboard password set: set DASHBOARD_ADMIN_PASSWORD (or DASHBOARD_ADMIN_PASSWORD_FILE), " +
+			"or pass -insecure-no-auth to run without a login")
+	}
+	if *noAuth {
+		log.Print("WARNING: login disabled (-insecure-no-auth); anyone who can reach the dashboard can manage the node")
+	}
 
 	client := rpc.New(rpc.Options{URL: *rpcURL, User: *rpcUser, Pass: *rpcPass, Timeout: *rpcTimeout})
 	srv := &http.Server{
 		Addr:              *listen,
-		Handler:           server.New(client, *refresh).Handler(),
+		Handler:           server.New(client, server.Config{Refresh: *refresh, Password: pw, NoAuth: *noAuth}).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -50,6 +68,20 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
+}
+
+func resolvePassword(pw, file string) (string, error) {
+	if file == "" {
+		return pw, nil
+	}
+	if pw != "" {
+		return "", errors.New("set either the admin password or the password file, not both")
+	}
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return "", fmt.Errorf("reading password file: %w", err)
+	}
+	return strings.TrimRight(string(b), "\r\n"), nil
 }
 
 func envOr(key, def string) string {

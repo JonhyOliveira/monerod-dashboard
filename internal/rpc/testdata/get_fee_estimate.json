@@ -1,0 +1,13 @@
+{
+  "id": "0",
+  "jsonrpc": "2.0",
+  "result": {
+    "credits": 0,
+    "fee": 1200000,
+    "fees": [1200000,4700000,19000000,240000000],
+    "quantization_mask": 10000,
+    "status": "OK",
+    "top_hash": "",
+    "untrusted": false
+  }
+}

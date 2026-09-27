@@ -1,0 +1,24 @@
+{
+  "id": "0",
+  "jsonrpc": "2.0",
+  "result": {
+    "already_generated_coins": 4590993534018806,
+    "difficulty": "0x1",
+    "height": 131,
+    "major_version": 16,
+    "median_weight": 300000,
+    "prev_id": "7a850f7fbdfa747dbeacfb96214dfebb7219f8f933ec9ce4a1f6c4266ef1d99c",
+    "seed_hash": "418015bb9ae982a1975da7d79277c2705727a56894ba0fb246adaabb1f4632e3",
+    "status": "OK",
+    "tx_backlog": [{
+      "fee": 2605200000,
+      "id": "f7e227d5f052446c0f6c71585c44837a27cead91915626618cbca2f28ce43980",
+      "weight": 2166
+    },{
+      "fee": 2605200000,
+      "id": "db0b413ffdad6f250fd9a358782c86ab273a1ea17bcc4c77d75ceef6a14411e5",
+      "weight": 2166
+    }],
+    "untrusted": false
+  }
+}

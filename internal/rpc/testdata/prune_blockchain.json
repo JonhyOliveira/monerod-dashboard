@@ -1,0 +1,10 @@
+{
+  "id": "0",
+  "jsonrpc": "2.0",
+  "result": {
+    "pruned": false,
+    "pruning_seed": 0,
+    "status": "OK",
+    "untrusted": false
+  }
+}

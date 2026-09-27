@@ -49,14 +49,14 @@ func TestGetInfo(t *testing.T) {
 
 func TestRPCError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"jsonrpc":"2.0","id":"0","error":{"code":-32601,"message":"Method not found"}}`))
+		w.Write([]byte(`{"jsonrpc":"2.0","id":"0","error":{"code":-1,"message":"Internal error"}}`))
 	}))
 	defer srv.Close()
 
 	_, err := New(Options{URL: srv.URL}).GetInfo(context.Background())
 	var rpcErr *Error
-	if !errors.As(err, &rpcErr) || rpcErr.Code != -32601 {
-		t.Fatalf("want rpc error -32601, got %v", err)
+	if !errors.As(err, &rpcErr) || rpcErr.Code != -1 {
+		t.Fatalf("want rpc error -1, got %v", err)
 	}
 }
 

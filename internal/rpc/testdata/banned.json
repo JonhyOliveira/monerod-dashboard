@@ -1,0 +1,9 @@
+{
+  "id": "0",
+  "jsonrpc": "2.0",
+  "result": {
+    "banned": true,
+    "seconds": 3600,
+    "status": "OK"
+  }
+}

@@ -1,0 +1,119 @@
+{{define "page"}}
+<div id="live" data-live>{{template "live" .}}</div>
+
+<section class="grid forms">
+  <article class="card danger-zone">
+    <h2>Flush the whole pool</h2>
+    <p class="muted small">Drops every transaction from this node's pool. Wallets rebroadcast their own; others return when peers relay them again.</p>
+    <form method="post" action="/actions/flush_txpool" data-action class="inline">
+      {{template "action-fields" .}}
+      <label>Type <code>flush</code> <input name="confirm" required pattern="flush" autocomplete="off"></label>
+      <button type="submit" class="danger">Flush pool</button>
+    </form>
+  </article>
+</section>
+{{end}}
+
+{{define "live"}}
+{{$v := .}}
+{{with .Data}}
+<section class="grid">
+  <article class="card">
+    <h2>Pool</h2>
+    {{with .Stats}}{{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
+    <dl>
+      <div><dt>Transactions</dt><dd class="big">{{int .TxsTotal}}</dd></div>
+      <div><dt>Size</dt><dd>{{bytes .BytesTotal}}</dd></div>
+      <div><dt>Fees</dt><dd>{{xmr .FeeTotal}}</dd></div>
+      <div><dt>Oldest</dt><dd>{{ago .Oldest}}</dd></div>
+    </dl>{{end}}{{end}}{{end}}
+  </article>
+  <article class="card">
+    <h2>Health</h2>
+    {{with .Stats}}{{if not .Err}}{{with .V}}
+    <dl>
+      <div><dt>Older than 10 min</dt><dd>{{int .Num10m}}</dd></div>
+      <div><dt>Failing</dt><dd>{{int .NumFailing}}</dd></div>
+      <div><dt>Double spends</dt><dd>{{int .NumDoubleSpends}}</dd></div>
+      <div><dt>Not relayed</dt><dd>{{int .NumNotRelayed}}</dd></div>
+    </dl>{{end}}{{end}}{{end}}
+  </article>
+  <article class="card">
+    <h2>Sizes</h2>
+    {{with .Stats}}{{if not .Err}}{{with .V}}
+    <dl>
+      <div><dt>Smallest</dt><dd>{{bytes .BytesMin}}</dd></div>
+      <div><dt>Median</dt><dd>{{bytes .BytesMed}}</dd></div>
+      <div><dt>Largest</dt><dd>{{bytes .BytesMax}}</dd></div>
+    </dl>{{end}}{{end}}{{end}}
+  </article>
+  <article class="card">
+    <h2>Fee rates (backlog)</h2>
+    {{with .Backlog}}{{if .Err}}{{template "err" .Err}}{{else if not .V}}<p class="muted">Empty.</p>{{end}}{{end}}
+    {{if .FeeRateMax}}
+    <dl>
+      <div><dt>Lowest</dt><dd>{{int .FeeRateMin}} pXMR/B</dd></div>
+      <div><dt>Median</dt><dd>{{int .FeeRateMed}} pXMR/B</dd></div>
+      <div><dt>Highest</dt><dd>{{int .FeeRateMax}} pXMR/B</dd></div>
+    </dl>{{end}}
+  </article>
+</section>
+
+{{with .Stats}}{{if not .Err}}{{with .V}}{{if .Histo}}
+<section class="card">
+  <h2>Age histogram</h2>
+  <p class="muted small">Transactions by time in the pool, newest bucket first{{if .Histo98pc}}; 98% arrived within {{dur .Histo98pc}}{{end}}.</p>
+  <div class="histo">{{$max := $.Data.HistoMax}}{{range .Histo}}<div class="histo-bar" title="{{.Txs}} tx, {{bytes .Bytes}}"><span style="{{barh .Txs $max}}"></span></div>{{end}}</div>
+</section>
+{{end}}{{end}}{{end}}{{end}}
+
+<section class="card">
+  <h2>Transactions</h2>
+  {{with .Pool}}{{if .Err}}{{template "err" .Err}}{{else if not .V.Transactions}}<p class="muted">The pool is empty.</p>{{else}}
+  <form method="post" action="/actions/flush_txpool" data-action id="pool-form">
+    {{template "action-fields" $v}}
+    <div class="scroll">
+    <table class="table">
+      <thead><tr>
+        <th><input type="checkbox" data-select-all="txid" aria-label="Select all"></th>
+        <th>Hash</th><th class="num">Fee</th><th class="num">Weight</th><th class="num">Fee rate</th><th>Received</th><th>Status</th>
+      </tr></thead>
+      <tbody>
+      {{range .V.Transactions}}
+        <tr>
+          <td><input type="checkbox" name="txid" value="{{.IDHash}}" aria-label="Select {{.IDHash}}"></td>
+          <td class="mono"><a href="/tx/{{.IDHash}}">{{short .IDHash}}</a></td>
+          <td class="num">{{xmr .Fee}}</td>
+          <td class="num">{{bytes .Weight}}</td>
+          <td class="num">{{feerate .Fee .Weight}}</td>
+          <td>{{ago .ReceiveTime}}</td>
+          <td>
+            {{if .Relayed}}<span class="tag ok">relayed</span>{{else}}<span class="tag">not relayed</span>{{end}}
+            {{if .DoNotRelay}}<span class="tag">do-not-relay</span>{{end}}
+            {{if .DoubleSpendSeen}}<span class="tag err">double spend</span>{{end}}
+            {{if .KeptByBlock}}<span class="tag">from popped block</span>{{end}}
+            {{if .LastFailedHeight}}<span class="tag err" title="failed at height {{.LastFailedHeight}}">failing</span>{{end}}
+          </td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    </div>
+    <div class="row">
+      <button type="submit" class="danger" data-confirm="Remove the selected transactions from the pool?">Remove selected</button>
+      <button type="submit" formaction="/actions/relay_tx" class="secondary">Relay selected</button>
+    </div>
+  </form>
+  {{if .V.SpentKeyImages}}
+  <details>
+    <summary>{{len .V.SpentKeyImages}} key images spent by pool transactions</summary>
+    <table class="table">
+      <thead><tr><th>Key image</th><th>Spent by</th></tr></thead>
+      <tbody>{{range .V.SpentKeyImages}}<tr><td class="mono">{{short .IDHash}}</td><td class="mono">{{range .TxsHashes}}<a href="/tx/{{.}}">{{short .}}</a> {{end}}</td></tr>{{end}}</tbody>
+    </table>
+  </details>
+  {{end}}
+  {{end}}{{end}}
+</section>
+{{end}}
+{{end}}

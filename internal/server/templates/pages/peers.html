@@ -1,0 +1,148 @@
+{{define "page"}}
+<div id="live" data-live>{{template "live" .}}</div>
+
+<section class="grid forms">
+  <article class="card">
+    <h2>Ban a host</h2>
+    <form method="post" action="/actions/ban" data-action class="stack">
+      {{template "action-fields" .}}
+      <label>IP address or subnet
+        <input name="host" required placeholder="203.0.113.7 or 203.0.113.0/24" autocomplete="off" spellcheck="false">
+      </label>
+      <label>For
+        <select name="seconds">
+          <option value="3600">1 hour</option>
+          <option value="86400" selected>1 day</option>
+          <option value="604800">1 week</option>
+          <option value="2592000">30 days</option>
+          <option value="4294967295">Indefinitely (~136 years)</option>
+        </select>
+      </label>
+      <button type="submit">Ban</button>
+    </form>
+  </article>
+
+  <article class="card">
+    <h2>Connection limits</h2>
+    {{with .Data}}{{if .LimitsErr}}{{template "err" .LimitsErr}}{{else}}
+    <p class="muted small">Now: {{limit .OutLimit}} outgoing, {{limit .InLimit}} incoming.</p>{{end}}{{end}}
+    <form method="post" action="/actions/out_peers" data-action class="inline">
+      {{template "action-fields" .}}
+      <label>Outgoing <input name="limit" type="number" min="0" max="1000" required value="{{.Data.OutLimit}}"></label>
+      <button type="submit">Set</button>
+    </form>
+    <form method="post" action="/actions/in_peers" data-action class="inline">
+      {{template "action-fields" .}}
+      <label>Incoming <input name="limit" type="number" min="0" max="100000" placeholder="unlimited"{{if ne (limit .Data.InLimit) "unlimited"}} value="{{.Data.InLimit}}"{{end}}></label>
+      <button type="submit">Set</button>
+    </form>
+    <p class="muted small">Leave incoming empty for no limit. Limits last until monerod restarts; use --out-peers / --in-peers to make them permanent.</p>
+  </article>
+</section>
+
+{{with .Data.PeerList}}
+<section class="card">
+  <h2>Peer list</h2>
+  {{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
+  <details>
+    <summary>White list: {{len .WhiteList}} peers seen recently</summary>
+    {{template "peerlist" .WhiteList}}
+  </details>
+  <details>
+    <summary>Gray list: {{len .GrayList}} peers heard of, not yet contacted</summary>
+    {{template "peerlist" .GrayList}}
+  </details>
+  {{end}}{{end}}
+</section>
+{{end}}
+
+{{with .Data.Public}}
+<section class="card">
+  <h2>Public RPC nodes</h2>
+  {{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
+  {{if or .White .Gray}}
+  <table class="table">
+    <thead><tr><th>Host</th><th class="num">RPC port</th><th>List</th><th>Last seen</th></tr></thead>
+    <tbody>
+      {{range .White}}<tr><td class="mono">{{.Host}}</td><td class="num">{{.RPCPort}}</td><td>white</td><td>{{ago .LastSeen}}</td></tr>{{end}}
+      {{range .Gray}}<tr><td class="mono">{{.Host}}</td><td class="num">{{.RPCPort}}</td><td>gray</td><td>{{ago .LastSeen}}</td></tr>{{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">No peers advertising a public RPC port.</p>{{end}}
+  {{end}}{{end}}
+</section>
+{{end}}
+{{end}}
+
+{{define "peerlist"}}
+{{if .}}
+<div class="scroll">
+<table class="table">
+  <thead><tr><th>Host</th><th class="num">Port</th><th class="num">RPC port</th><th class="num">Pruning seed</th><th>Last seen</th></tr></thead>
+  <tbody>{{range .}}<tr><td class="mono">{{.Host}}</td><td class="num">{{.Port}}</td><td class="num">{{if .RPCPort}}{{.RPCPort}}{{else}}—{{end}}</td><td class="num">{{.PruningSeed}}</td><td>{{ago .LastSeen}}</td></tr>{{end}}</tbody>
+</table>
+</div>
+{{else}}<p class="muted">Empty.</p>{{end}}
+{{end}}
+
+{{define "live"}}
+{{$v := .}}
+<section class="card">
+  <h2>Connections</h2>
+  {{with .Data.Connections}}{{if .Err}}{{template "err" .Err}}{{else if not .V}}<p class="muted">No peers connected.</p>{{else}}
+  <div class="scroll">
+  <table class="table">
+    <thead><tr>
+      <th>Peer</th><th>Direction</th><th class="num">Height</th><th>State</th><th class="num">Connected</th>
+      <th class="num">Down / up now</th><th class="num">Received</th><th class="num">Sent</th><th></th>
+    </tr></thead>
+    <tbody>
+    {{range .V}}
+      <tr>
+        <td class="mono" title="peer id {{.PeerID}}">{{.Address}}{{if .Localhost}} <span class="tag">local</span>{{end}}</td>
+        <td>{{if .Incoming}}in{{else}}out{{end}}</td>
+        <td class="num">{{int .Height}}</td>
+        <td>{{.State}}</td>
+        <td class="num">{{dur .LiveTime}}</td>
+        <td class="num">{{int .CurrentDownload}} / {{int .CurrentUpload}} kB/s</td>
+        <td class="num">{{bytes .RecvCount}}</td>
+        <td class="num">{{bytes .SendCount}}</td>
+        <td>
+          <form method="post" action="/actions/ban" data-action data-confirm="Ban {{.Host}} for a day? This drops the connection.">
+            {{template "action-fields" $v}}
+            <input type="hidden" name="host" value="{{.Host}}"><input type="hidden" name="seconds" value="86400">
+            <button type="submit" class="small danger">Ban</button>
+          </form>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+  {{end}}{{end}}
+</section>
+
+<section class="card">
+  <h2>Bans</h2>
+  {{with .Data.Bans}}{{if .Err}}{{template "err" .Err}}{{else if not .V}}<p class="muted">Nobody is banned.</p>{{else}}
+  <table class="table">
+    <thead><tr><th>Host</th><th class="num">Time left</th><th></th></tr></thead>
+    <tbody>
+    {{range .V}}
+      <tr>
+        <td class="mono">{{.Host}}</td>
+        <td class="num">{{dur .Seconds}}</td>
+        <td>
+          <form method="post" action="/actions/unban" data-action>
+            {{template "action-fields" $v}}
+            <input type="hidden" name="host" value="{{.Host}}">
+            <button type="submit" class="small">Unban</button>
+          </form>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{end}}{{end}}
+</section>
+{{end}}

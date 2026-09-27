@@ -1,0 +1,92 @@
+{{define "page"}}
+<section class="grid forms">
+  <article class="card">
+    <h2>Logging</h2>
+    <form method="post" action="/actions/set_log_level" data-action class="inline">
+      {{template "action-fields" .}}
+      <label>Level
+        <select name="level">
+          <option value="0">0 · default</option>
+          <option value="1">1 · info</option>
+          <option value="2">2 · debug</option>
+          <option value="3">3 · trace</option>
+          <option value="4">4 · everything</option>
+        </select>
+      </label>
+      <button type="submit">Set</button>
+    </form>
+    <form method="post" action="/actions/set_log_categories" data-action class="inline">
+      {{template "action-fields" .}}
+      <label>Categories <input name="categories" required placeholder="*:WARNING,net.p2p:DEBUG" spellcheck="false"></label>
+      <button type="submit">Set</button>
+    </form>
+    <p class="muted small">Changes last until monerod restarts.</p>
+  </article>
+
+  <article class="card">
+    <h2>Database</h2>
+    <form method="post" action="/actions/save_bc" data-action class="inline">
+      {{template "action-fields" .}}
+      <button type="submit" class="secondary">Save blockchain to disk</button>
+    </form>
+    <form method="post" action="/actions/flush_cache" data-action class="inline">
+      {{template "action-fields" .}}
+      <label class="check"><input type="checkbox" name="bad_txs" value="1" checked> bad transactions</label>
+      <label class="check"><input type="checkbox" name="bad_blocks" value="1"> bad blocks</label>
+      <button type="submit" class="secondary">Flush cache</button>
+    </form>
+    {{with .Data.Info}}<p class="muted small">Database {{bytes .DatabaseSize}}{{if and .FreeSpace (not .Restricted)}}, {{bytes .FreeSpace}} free{{end}}.</p>{{end}}
+  </article>
+
+  <article class="card">
+    <h2>Updates</h2>
+    <form method="post" action="/actions/update_check" data-action class="inline">
+      {{template "action-fields" .}}
+      <button type="submit" class="secondary">Check for updates</button>
+    </form>
+    <form method="post" action="/actions/update_download" data-action class="inline">
+      {{template "action-fields" .}}
+      <label>Type <code>download</code> <input name="confirm" required pattern="download" autocomplete="off" size="9"></label>
+      <button type="submit">Download update</button>
+    </form>
+    <p class="muted small">monerod looks updates up over DNS, which can take up to half a minute. Downloading saves the new release next to monerod; installing it and restarting is up to you.</p>
+  </article>
+</section>
+
+<section class="grid forms">
+  <article class="card danger-zone">
+    <h2>Prune the blockchain</h2>
+    {{with .Data.Prune}}{{if .Err}}{{template "err" .Err}}{{else}}{{with .V}}
+    <p>{{if .Pruned}}Already pruned (seed {{.PruningSeed}}).{{else}}Not pruned: the full blockchain is stored.{{end}}</p>
+    {{if not .Pruned}}
+    <p class="muted small">Pruning drops about two thirds of the database and <strong>cannot be undone</strong>. The node keeps validating and serving its share of the chain.</p>
+    <form method="post" action="/actions/prune_blockchain" data-action class="inline">
+      {{template "action-fields" $}}
+      <label>Type <code>prune</code> <input name="confirm" required pattern="prune" autocomplete="off" size="6"></label>
+      <button type="submit" class="danger">Prune</button>
+    </form>
+    {{end}}{{end}}{{end}}{{end}}
+  </article>
+
+  <article class="card danger-zone">
+    <h2>Pop blocks</h2>
+    <p class="muted small">Removes blocks from the top of the chain; they are downloaded again from peers. Useful to step back from a bad fork.</p>
+    <form method="post" action="/actions/pop_blocks" data-action class="stack">
+      {{template "action-fields" .}}
+      <label>Blocks to remove <input name="count" type="number" min="1" max="100000" required></label>
+      <label>Type the same number again to confirm <input name="confirm" required autocomplete="off"></label>
+      <button type="submit" class="danger">Pop blocks</button>
+    </form>
+  </article>
+
+  <article class="card danger-zone">
+    <h2>Stop monerod</h2>
+    <p class="muted small">Shuts the daemon down cleanly. The dashboard can't start it again; your container restart policy or service manager decides that.</p>
+    <form method="post" action="/actions/stop_daemon" data-action class="inline">
+      {{template "action-fields" .}}
+      <label>Type <code>stop</code> <input name="confirm" required pattern="stop" autocomplete="off" size="5"></label>
+      <button type="submit" class="danger">Stop daemon</button>
+    </form>
+  </article>
+</section>
+{{end}}

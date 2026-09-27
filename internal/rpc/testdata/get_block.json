@@ -1,0 +1,37 @@
+{
+  "id": "0",
+  "jsonrpc": "2.0",
+  "result": {
+    "blob": "1010e593e3d506362828fecbfd72ff1bea8978c0a31ffa20ef49057dd12eb81e229aae465e2f2f0000000002a00101ff640199a4a690e7ff0703d17bb96d3960f8f59ad34db3fb8cce86d406831fc6e3d60b8eb86746dcb355b8502401336d38312ebe765714da67ad954c1fa3b6001cc6fbf4b4f9527ea556217df3f60201000000",
+    "block_header": {
+      "block_size": 86,
+      "block_weight": 86,
+      "cumulative_difficulty": 101,
+      "cumulative_difficulty_top64": 0,
+      "depth": 30,
+      "difficulty": 1,
+      "difficulty_top64": 0,
+      "hash": "845469019f042b6be9892b8ab63fafdb2de98a0d2f977f68225733bc2ecc785c",
+      "height": 100,
+      "long_term_weight": 176470,
+      "major_version": 16,
+      "miner_tx_hash": "275e60f4a94a1719c10b76acc92cb52c26c00c069cf1818aaea54ac98d72f433",
+      "minor_version": 16,
+      "nonce": 0,
+      "num_txes": 0,
+      "orphan_status": false,
+      "pow_hash": "",
+      "prev_hash": "362828fecbfd72ff1bea8978c0a31ffa20ef49057dd12eb81e229aae465e2f2f",
+      "reward": 35177695384089,
+      "timestamp": 1790495205,
+      "wide_cumulative_difficulty": "0x65",
+      "wide_difficulty": "0x1"
+    },
+    "credits": 0,
+    "json": "{\n  \"major_version\": 16, \n  \"minor_version\": 16, \n  \"timestamp\": 1790495205, \n  \"prev_id\": \"362828fecbfd72ff1bea8978c0a31ffa20ef49057dd12eb81e229aae465e2f2f\", \n  \"nonce\": 0, \n  \"miner_tx\": {\n    \"version\": 2, \n    \"unlock_time\": 160, \n    \"vin\": [ {\n        \"gen\": {\n          \"height\": 100\n        }\n      }\n    ], \n    \"vout\": [ {\n        \"amount\": 35177695384089, \n        \"target\": {\n          \"tagged_key\": {\n            \"key\": \"d17bb96d3960f8f59ad34db3fb8cce86d406831fc6e3d60b8eb86746dcb355b8\", \n            \"view_tag\": \"50\"\n          }\n        }\n      }\n    ], \n    \"extra\": [ 1, 51, 109, 56, 49, 46, 190, 118, 87, 20, 218, 103, 173, 149, 76, 31, 163, 182, 0, 28, 198, 251, 244, 180, 249, 82, 126, 165, 86, 33, 125, 243, 246, 2, 1, 0\n    ], \n    \"rct_signatures\": {\n      \"type\": 0\n    }\n  }, \n  \"tx_hashes\": [ ]\n}",
+    "miner_tx_hash": "275e60f4a94a1719c10b76acc92cb52c26c00c069cf1818aaea54ac98d72f433",
+    "status": "OK",
+    "top_hash": "",
+    "untrusted": false
+  }
+}

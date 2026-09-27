@@ -1,0 +1,64 @@
+{{define "page"}}
+{{with .Data}}
+{{if .Err}}<section class="card"><h2>Transaction</h2><p class="hash mono">{{.Hash}}</p>{{template "err" .Err}}</section>{{else}}{{with .Tx}}{{$s := $.Data.Summary}}
+<section class="card">
+  <h2>Transaction {{if $s.Coinbase}}<span class="tag">coinbase</span>{{end}}{{if .InPool}}<span class="tag warn">in pool</span>{{end}}</h2>
+  <p class="hash mono">{{.TxHash}}</p>
+  <dl class="cols">
+    {{if .InPool}}
+    <div><dt>Status</dt><dd>Waiting in the pool{{if .Relayed}}, relayed{{else}}, not relayed{{end}}</dd></div>
+    <div><dt>Received</dt><dd>{{ts .ReceivedTimestamp}}</dd></div>
+    {{else}}
+    <div><dt>Block</dt><dd><a href="/block/{{.BlockHeight}}">{{int .BlockHeight}}</a></dd></div>
+    <div><dt>Time</dt><dd>{{ts .BlockTimestamp}}</dd></div>
+    <div><dt>Confirmations</dt><dd>{{if .Confirmations}}{{int .Confirmations}}{{else}}—{{end}}</dd></div>
+    {{end}}
+    <div><dt>Fee</dt><dd>{{if $s.Coinbase}}—{{else}}{{xmr $s.Fee}}{{end}}</dd></div>
+    <div><dt>Size</dt><dd>{{bytes (len .AsHex | halflen)}}</dd></div>
+    <div><dt>Version</dt><dd>{{$s.Version}}</dd></div>
+    <div><dt>Inputs</dt><dd>{{if $s.Coinbase}}coinbase{{else}}{{len $s.Inputs}} (ring size {{$s.RingSize}}){{end}}</dd></div>
+    <div><dt>Outputs</dt><dd>{{$s.Outputs}}</dd></div>
+    <div><dt>Unlock time</dt><dd>{{if $s.UnlockTime}}{{int $s.UnlockTime}}{{else}}none{{end}}</dd></div>
+    <div><dt>RingCT type</dt><dd>{{$s.RCTType}}</dd></div>
+    <div><dt>Extra</dt><dd>{{$s.ExtraLen}} bytes</dd></div>
+    {{if .DoubleSpendSeen}}<div><dt>Double spend</dt><dd class="err">seen</dd></div>{{end}}
+  </dl>
+  {{if .InPool}}
+  <form method="post" action="/actions/relay_tx" data-action class="inline">
+    {{template "action-fields" $}}
+    <input type="hidden" name="txid" value="{{.TxHash}}">
+    <button type="submit" class="secondary">Relay again</button>
+    <button type="submit" formaction="/actions/flush_txpool" class="danger" data-confirm="Remove this transaction from the pool?">Remove from pool</button>
+  </form>
+  {{end}}
+</section>
+
+{{if $s.Inputs}}
+<section class="card">
+  <h2>Key images</h2>
+  <form method="get" action="/tools">
+    <input type="hidden" name="op" value="key_images">
+    <input type="hidden" name="key_images" value="{{range $s.Inputs}}{{.KeyImage}} {{end}}">
+    <table class="table">
+      <thead><tr><th>Key image</th><th class="num">Ring size</th></tr></thead>
+      <tbody>{{range $s.Inputs}}<tr><td class="mono">{{.KeyImage}}</td><td class="num">{{.RingSize}}</td></tr>{{end}}</tbody>
+    </table>
+    <button type="submit" class="secondary small">Check which are spent</button>
+  </form>
+</section>
+{{end}}
+
+<section class="card">
+  <details>
+    <summary>Decoded transaction (JSON)</summary>
+    <pre class="code">{{$.Data.Pretty}}</pre>
+  </details>
+  <details>
+    <summary>Raw transaction ({{len .AsHex}} hex characters)</summary>
+    <pre class="code wrap">{{.AsHex}}</pre>
+  </details>
+  {{if .OutputIndices}}<p class="muted small">Global output indices: {{range .OutputIndices}}{{.}} {{end}}</p>{{end}}
+</section>
+{{end}}{{end}}
+{{end}}
+{{end}}

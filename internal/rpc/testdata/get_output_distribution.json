@@ -1,0 +1,18 @@
+{
+  "id": "0",
+  "jsonrpc": "2.0",
+  "result": {
+    "credits": 0,
+    "distributions": [{
+      "amount": 0,
+      "base": 119,
+      "binary": false,
+      "compress": false,
+      "distribution": [1,1,1,1,1,1,1,1,1,1,1],
+      "start_height": 120
+    }],
+    "status": "OK",
+    "top_hash": "",
+    "untrusted": false
+  }
+}

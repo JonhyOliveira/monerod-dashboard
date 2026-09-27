@@ -2,7 +2,7 @@
 
 A dashboard for the monero daemon. Exposes some of the information available through the RPC interface.
 
-A single Go binary (standard library only, plus a bundled copy of [htmx](https://htmx.org)) that talks to `monerod`'s RPC and serves a web interface to watch **and manage** your node:
+A single Go binary (standard library only, plus a bundled copy of [htmx](https://htmx.org)) that talks to [`monerod`](https://github.com/monero-project/monero)'s RPC and serves a web interface to watch **and manage** your node:
 
 - **Overview:** sync state, peers, chain, mempool, storage, uptime, traffic, fees, consensus, with warnings for common failures (unreachable, no peers, low disk, stale tip, update available)
 - **Peers:** live connections, ban/unban hosts and subnets, connection limits, white/gray peer lists, public RPC nodes

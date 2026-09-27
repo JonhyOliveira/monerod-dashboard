@@ -22,8 +22,11 @@ type overview struct {
 	Stale    bool // last known data, monerod not answering or late
 	Warnings []status.Warning
 
-	StateClass   string
-	StateLabel   string
+	StateClass string
+	StateLabel string
+	// While syncing: blocks behind, short ("835.4k") and exact ("835,417").
+	BehindShort  string
+	BehindExact  string
 	SyncBarClass string
 	SyncBarStyle template.CSS
 	Height       string
@@ -74,6 +77,9 @@ func newOverview(s StatusResponse) overview {
 
 	p.StateClass = n.State
 	p.StateLabel = n.StateLabel
+	if n.State == "syncing" && n.BlocksBehind > 1 {
+		p.BehindShort, p.BehindExact = fmtCompact(n.BlocksBehind), fmtInt(n.BlocksBehind)
+	}
 	pct := math.Min(100, n.SyncPercent)
 	p.SyncBarStyle = template.CSS("width: " + strconv.FormatFloat(pct, 'f', -1, 64) + "%")
 	p.SyncBarClass = "warn"
@@ -169,6 +175,20 @@ func fmtDuration(s int64) string {
 		return fmt.Sprintf("%dm %ds", m, sec)
 	}
 	return fmt.Sprintf("%ds", sec)
+}
+
+// fmtCompact shortens large counts: 835417 -> "835.4k", 1121083 -> "1.1M".
+func fmtCompact(n uint64) string {
+	if n < 1000 {
+		return fmtInt(n)
+	}
+	units := []string{"k", "M", "B", "T"}
+	v, i := float64(n)/1000, 0
+	for i < len(units)-1 && math.Floor(v*10+0.5)/10 >= 1000 {
+		v /= 1000
+		i++
+	}
+	return strings.TrimSuffix(toFixed(v, 1), ".0") + units[i]
 }
 
 func fmtInt(n uint64) string { return groupThousands(strconv.FormatUint(n, 10)) }

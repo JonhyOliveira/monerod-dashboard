@@ -100,3 +100,21 @@ func TestSyncPercentFloors(t *testing.T) {
 		t.Errorf("SyncPercent = %q, want 99.99%%", p.SyncPercent)
 	}
 }
+
+func TestFmtCompact(t *testing.T) {
+	for in, want := range map[uint64]string{
+		0: "0", 999: "999", 1000: "1k", 1049: "1k", 1050: "1.1k", 835417: "835.4k",
+		999949: "999.9k", 999950: "1M", 1121083: "1.1M", 3771581: "3.8M", 2_500_000_000: "2.5B",
+	} {
+		if got := fmtCompact(in); got != want {
+			t.Errorf("fmtCompact(%d) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestBlocksBehindHumanized(t *testing.T) {
+	p := newOverview(StatusResponse{OK: true, Node: &status.Node{State: "syncing", BlocksBehind: 835417, StateLabel: "Syncing (835417 blocks behind)"}})
+	if p.BehindShort != "835.4k" || p.BehindExact != "835,417" {
+		t.Errorf("behind = %q / %q", p.BehindShort, p.BehindExact)
+	}
+}

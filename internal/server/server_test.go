@@ -615,3 +615,13 @@ func TestStaleReasonBusy(t *testing.T) {
 		t.Errorf("BUSY reason = %q", got)
 	}
 }
+
+func TestBlocksBehindTooltip(t *testing.T) {
+	e := newEnv(t)
+	e.daemon.Handle("get_info", func(json.RawMessage) any {
+		return map[string]any{"status": "OK", "height": 2650498, "target_height": 3485915, "nettype": "mainnet", "outgoing_connections_count": 8}
+	})
+	e.login()
+	_, body := e.get("/")
+	mustContain(t, body, `Syncing (<span class="humanized" title="835,417 blocks behind">835.4k</span> blocks behind)`)
+}

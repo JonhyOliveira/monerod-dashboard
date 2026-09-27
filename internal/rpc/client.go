@@ -74,6 +74,13 @@ type StatusError struct {
 
 func (e *StatusError) Error() string { return fmt.Sprintf("%s: %s", e.Method, e.Status) }
 
+// IsBusy reports whether monerod refused a call with status BUSY, which it
+// does for some methods while it isn't synchronized.
+func IsBusy(err error) bool {
+	var se *StatusError
+	return errors.As(err, &se) && se.Status == "BUSY"
+}
+
 // Status is embedded in every result that carries monerod's status field.
 type Status struct {
 	Status    string `json:"status"`

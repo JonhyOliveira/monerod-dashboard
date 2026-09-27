@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jonhyoliveira/monerod-dashboard/internal/rpc"
 	"github.com/jonhyoliveira/monerod-dashboard/internal/rpc/rpctest"
@@ -221,4 +222,20 @@ func TestActionParams(t *testing.T) {
 	check("generateblocks", `{"amount_of_blocks":10,"wallet_address":"4x"}`)
 	must(c.CalcPow(ctx, rpc.CalcPowParams{MajorVersion: 16, Height: 5, BlockBlob: "aa", SeedHash: "bb"}))
 	check("calc_pow", `{"major_version":16,"height":5,"block_blob":"aa","seed_hash":"bb"}`)
+}
+
+// While syncing, monerod answers get_last_block_header with BUSY; the
+// cached node falls back to fetching the top header by height.
+func TestLastBlockHeaderWhileSyncing(t *testing.T) {
+	d := rpctest.New(t)
+	d.Handle("get_last_block_header", func(json.RawMessage) any { return map[string]string{"status": "BUSY"} })
+	n := rpc.NewNode(rpc.New(rpc.Options{URL: d.URL}), time.Minute, time.Minute)
+	h, err := n.GetLastBlockHeader(context.Background())
+	if err != nil || h == nil || h.Hash == "" {
+		t.Fatalf("header = %+v, err = %v", h, err)
+	}
+	calls := d.Calls("get_block_header_by_height")
+	if len(calls) != 1 || !strings.Contains(string(calls[0].Params), `"height":130`) {
+		t.Fatalf("fallback calls = %+v", calls)
+	}
 }

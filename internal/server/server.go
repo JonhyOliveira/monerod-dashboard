@@ -5,7 +5,6 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io/fs"
 	"log"
 	"net/http"
@@ -198,11 +197,10 @@ func staleWarning(age time.Duration, err error) status.Warning {
 
 // staleReason explains why cached data could not be refreshed.
 func staleReason(err error) string {
-	var se *rpc.StatusError
 	switch {
 	case err == nil:
 		return "refreshes from monerod are running late."
-	case errors.As(err, &se) && se.Status == "BUSY":
+	case rpc.IsBusy(err):
 		// monerod answers some calls with BUSY while it syncs.
 		return "monerod is busy (it answers some requests with BUSY while syncing)."
 	}

@@ -40,17 +40,18 @@ func (f *Freshness) note(r cachedResult) {
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	// Nothing shown from this entry: its section shows the error itself;
+	// there is no old data to flag.
 	if !r.hasVal {
-		if r.err != nil {
-			f.stale, f.err = true, r.err
-		}
 		return
 	}
 	if f.oldest.IsZero() || r.okAt.Before(f.oldest) {
 		f.oldest = r.okAt
 	}
-	// Behind by more than two refreshes, or the latest refresh failed.
-	if r.err != nil || f.now().Sub(r.okAt) > 2*r.every {
+	// Stale means the data shown is old: behind by more than two refresh
+	// intervals. A single failed refresh of recent data is not flagged; the
+	// latest error only explains why data went stale.
+	if f.now().Sub(r.okAt) > 2*r.every {
 		f.stale = true
 		if r.err != nil {
 			f.err = r.err

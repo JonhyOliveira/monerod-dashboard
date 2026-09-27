@@ -178,9 +178,18 @@ func TestFreshness(t *testing.T) {
 		t.Fatalf("late refresh: stale=%v err=%v", stale, err)
 	}
 	boom := errors.New("down")
-	f.note(cachedResult{hasVal: true, okAt: now.Add(-1 * time.Second), every: time.Minute, err: boom})
+	// A failed refresh of recent data is not stale...
+	_, g := WithFreshness(context.Background())
+	g.now = f.now
+	g.note(cachedResult{hasVal: true, okAt: now.Add(-2 * time.Second), every: 5 * time.Second, err: boom})
+	g.note(cachedResult{err: boom}) // nothing to show: its section shows the error
+	if stale, _ := g.Stale(); stale {
+		t.Fatal("recent data with a failed refresh flagged stale")
+	}
+	// ...but explains old data.
+	f.note(cachedResult{hasVal: true, okAt: now.Add(-11 * time.Second), every: 5 * time.Second, err: boom})
 	if stale, err := f.Stale(); !stale || err != boom {
-		t.Fatalf("failed refresh: stale=%v err=%v", stale, err)
+		t.Fatalf("old data after a failed refresh: stale=%v err=%v", stale, err)
 	}
 	if !f.Oldest().Equal(now.Add(-11 * time.Second)) {
 		t.Fatalf("oldest = %v", f.Oldest())

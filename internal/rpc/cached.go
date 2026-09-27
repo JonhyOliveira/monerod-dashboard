@@ -77,8 +77,25 @@ func (n *Node) GetInfoAt(ctx context.Context) (*GetInfoResult, time.Time, error)
 }
 
 // GetLastBlockHeader is Client.GetLastBlockHeader, cached.
+//
+// monerod answers get_last_block_header with BUSY while it isn't
+// synchronized; the same header is then fetched by height, which works
+// during a sync.
 func (n *Node) GetLastBlockHeader(ctx context.Context) (*BlockHeader, error) {
-	v, _, err := cached(ctx, n, "get_last_block_header", n.fast, true, n.Client.GetLastBlockHeader)
+	v, _, err := cached(ctx, n, "get_last_block_header", n.fast, true, func(ctx context.Context) (*BlockHeader, error) {
+		h, err := n.Client.GetLastBlockHeader(ctx)
+		if !IsBusy(err) {
+			return h, err
+		}
+		count, err := n.Client.GetBlockCount(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if count == 0 {
+			return nil, fmt.Errorf("get_block_count: no blocks")
+		}
+		return n.Client.GetBlockHeaderByHeight(ctx, count-1)
+	})
 	return v, err
 }
 

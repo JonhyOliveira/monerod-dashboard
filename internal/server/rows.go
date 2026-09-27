@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"slices"
 	"strconv"
@@ -154,4 +155,119 @@ func (s *Server) peerRows(w http.ResponseWriter, r *http.Request) {
 	p := peerPage(list, peers, after)
 	p.Extra = true
 	s.renderFragment(w, "peers", "peer-rows", p)
+}
+
+// ---- Bans: by address, filtered by a search ----
+
+// banKey orders hosts by address, then subnet size; anything that doesn't
+// parse sorts last, by text.
+func banKey(host string) (netip.Prefix, bool) {
+	if p, err := netip.ParsePrefix(host); err == nil {
+		return p.Masked(), true
+	}
+	if a, err := netip.ParseAddr(host); err == nil {
+		return netip.PrefixFrom(a, a.BitLen()), true
+	}
+	return netip.Prefix{}, false
+}
+
+func compareHosts(a, b string) int {
+	pa, oka := banKey(a)
+	pb, okb := banKey(b)
+	switch {
+	case oka && okb:
+		if c := pa.Addr().Compare(pb.Addr()); c != 0 {
+			return c
+		}
+		if c := pa.Bits() - pb.Bits(); c != 0 {
+			return c
+		}
+	case oka:
+		return -1
+	case okb:
+		return 1
+	}
+	return strings.Compare(a, b)
+}
+
+// banMatches reports whether a ban matches the search q: its text contains
+// q, or q is an address inside the banned subnet.
+func banMatches(b rpc.Ban, q string) bool {
+	if strings.Contains(strings.ToLower(b.Host), strings.ToLower(q)) {
+		return true
+	}
+	a, err := netip.ParseAddr(q)
+	if err != nil {
+		return false
+	}
+	p, ok := banKey(b.Host)
+	return ok && p.Contains(a)
+}
+
+// banRows is a batch of the ban table. The rows carry unban forms, so it
+// needs the page's CSRF token and path.
+type banRows struct {
+	Page       rowsPage[rpc.Ban]
+	Query      string
+	Unfiltered int // bans before the search
+	CSRF, Path string
+}
+
+func banPage(bans []rpc.Ban, q, cursor string) banRows {
+	q = strings.TrimSpace(q)
+	var out []rpc.Ban
+	for _, b := range bans {
+		if q == "" || banMatches(b, q) {
+			out = append(out, b)
+		}
+	}
+	slices.SortStableFunc(out, func(a, b rpc.Ban) int { return compareHosts(a.Host, b.Host) })
+	p := paginate(out, cursor,
+		func(b rpc.Ban, c string) bool { return compareHosts(b.Host, c) > 0 },
+		func(b rpc.Ban) string { return b.Host })
+	qs := "ban_q=" + url.QueryEscape(q)
+	p.MoreURL = "/peers/bans?" + qs + "&after="
+	p.PageURL = "/peers?" + qs + "&ban_after="
+	return banRows{Page: p, Query: q, Unfiltered: len(bans)}
+}
+
+// banURL is the Peers page showing search q.
+func banURL(q string) string {
+	if q == "" {
+		return "/peers"
+	}
+	return "/peers?ban_q=" + url.QueryEscape(q)
+}
+
+// banRowsHandler serves a search of the ban table (the whole table) or its
+// next batch (rows only), and keeps the search in the address bar so live
+// refreshes and reloads keep it.
+func (s *Server) banRowsHandler(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	query, after := strings.TrimSpace(q.Get("ban_q")), q.Get("after")
+	if r.Header.Get("HX-Request") != "true" {
+		u := banURL(query)
+		if after != "" {
+			u = "/peers?ban_q=" + url.QueryEscape(query) + "&ban_after=" + url.QueryEscape(after)
+		}
+		http.Redirect(w, r, u, http.StatusSeeOther)
+		return
+	}
+	bans, err := s.rpc.GetBans(r.Context())
+	if err != nil {
+		http.Error(w, errMessage(err), http.StatusBadGateway)
+		return
+	}
+	p := banPage(bans, query, after)
+	if sess := sessionFrom(r); sess != nil {
+		p.CSRF = sess.csrf
+	}
+	p.Path = banURL(query)
+	if after != "" {
+		p.Page.Extra = true
+		s.renderFragment(w, "peers", "ban-rows", p)
+		return
+	}
+	w.Header().Set("HX-Replace-Url", p.Path)
+	s.renderFragment(w, "peers", "ban-results", p)
 }

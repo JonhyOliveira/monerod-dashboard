@@ -131,24 +131,46 @@
 <section class="card">
   <h2>Bans</h2>
   {{with .Data.Bans}}{{if .Err}}{{template "err" .Err}}{{else if not .V}}<p class="muted">Nobody is banned.</p>{{else}}
-  <table class="table">
-    <thead><tr><th>Host</th><th class="num">Time left</th><th></th></tr></thead>
-    <tbody>
-    {{range .V}}
-      <tr>
-        <td class="mono">{{.Host}}</td>
-        <td class="num">{{dur .Seconds}}</td>
-        <td>
-          <form method="post" action="/actions/unban" data-action>
-            {{template "action-fields" $v}}
-            <input type="hidden" name="host" value="{{.Host}}">
-            <button type="submit" class="small">Unban</button>
-          </form>
-        </td>
-      </tr>
-    {{end}}
-    </tbody>
-  </table>
+  {{with $.Data.BanRows}}
+  <form method="get" action="/peers" class="inline ban-search" role="search">
+    <label>Search <input type="search" name="ban_q" value="{{.Query}}" placeholder="IP, subnet or part of one" autocomplete="off" spellcheck="false"
+      hx-get="/peers/bans" hx-trigger="input changed delay:300ms, search" hx-target="#ban-results" hx-swap="outerHTML"></label>
+  </form>
+  {{template "ban-results" .}}
+  {{end}}
   {{end}}{{end}}
 </section>
+{{end}}
+
+{{/* The ban table for a search: a count plus the first batch. Takes banRows. */}}
+{{define "ban-results"}}
+<div id="ban-results">
+  <p class="muted small">{{if .Query}}{{int .Page.Total}} of {{int .Unfiltered}} bans match “{{.Query}}”.{{else}}{{int .Page.Total}} bans.{{end}} A searched address also matches the subnets that contain it.</p>
+  {{if .Page.Rows}}
+  <div class="scroll tall">
+  <table class="table">
+    <thead><tr><th>Host</th><th class="num">Time left</th><th></th></tr></thead>
+    <tbody>{{template "ban-rows" .}}</tbody>
+  </table>
+  </div>
+  {{else}}<p class="muted">No bans match.</p>{{end}}
+</div>
+{{end}}
+
+{{/* One batch of ban rows plus the sentinel that loads the next. */}}
+{{define "ban-rows"}}
+{{range .Page.Rows}}
+  <tr{{if $.Page.Extra}} data-extra{{end}}>
+    <td class="mono">{{.Host}}</td>
+    <td class="num">{{dur .Seconds}}</td>
+    <td>
+      <form method="post" action="/actions/unban" data-action>
+        <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="return" value="{{$.Path}}">
+        <input type="hidden" name="host" value="{{.Host}}">
+        <button type="submit" class="small">Unban</button>
+      </form>
+    </td>
+  </tr>
+{{end}}
+{{template "more-rows" dict "Page" .Page "Cols" 3}}
 {{end}}

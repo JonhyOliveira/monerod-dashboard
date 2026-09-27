@@ -137,3 +137,53 @@ func TestPeerRowsEndpoint(t *testing.T) {
 		t.Errorf("bad list: %d", resp.StatusCode)
 	}
 }
+
+func TestBanRows(t *testing.T) {
+	e := newEnv(t)
+	bans := []map[string]any{{"host": "192.168.0.0/16", "seconds": 60}}
+	for i := 0; i < 249; i++ {
+		bans = append(bans, map[string]any{"host": fmt.Sprintf("10.0.%d.%d", i/100, i%100), "seconds": 60})
+	}
+	e.daemon.Handle("get_bans", func(json.RawMessage) any {
+		return map[string]any{"status": "OK", "bans": bans}
+	})
+	e.login()
+
+	_, body := e.get("/peers")
+	mustContain(t, body, "250 bans.", `hx-get="/peers/bans"`, `/peers/bans?ban_q=&amp;after=10.0.0.99`, "Next 100 of 150 more")
+	if n := strings.Count(body, `action="/actions/unban"`); n != 100 {
+		t.Fatalf("page renders %d bans, want 100", n)
+	}
+	// Sorted by address: 10.0.0.2 before 10.0.0.10.
+	if strings.Index(body, ">10.0.0.2<") > strings.Index(body, ">10.0.0.10<") {
+		t.Error("bans not sorted by address")
+	}
+
+	// Next batch: rows only, with working unban forms.
+	resp, rows := e.get("/peers/bans?ban_q=&after=10.0.0.99", "HX-Request", "true")
+	if resp.StatusCode != http.StatusOK || strings.Contains(rows, "ban-results") {
+		t.Fatalf("batch: %d", resp.StatusCode)
+	}
+	mustContain(t, rows, "data-extra", `name="csrf" value="`+e.csrf+`"`, ">10.0.1.0<", "Next 50 of 50 more")
+
+	// Search: text, and an address inside a banned subnet.
+	resp, res := e.get("/peers/bans?ban_q=10.0.2.4", "HX-Request", "true")
+	mustContain(t, res, `id="ban-results"`, "10 of 250 bans match", ">10.0.2.4<", ">10.0.2.48<")
+	if got := resp.Header.Get("HX-Replace-Url"); got != "/peers?ban_q=10.0.2.4" {
+		t.Errorf("HX-Replace-Url = %q", got)
+	}
+	_, res = e.get("/peers/bans?ban_q=192.168.7.7", "HX-Request", "true")
+	mustContain(t, res, "1 of 250 bans match", ">192.168.0.0/16<")
+	_, res = e.get("/peers/bans?ban_q=nope", "HX-Request", "true")
+	mustContain(t, res, "No bans match.")
+
+	// The page (and so live refreshes) keeps the search from the URL.
+	_, body = e.get("/peers?ban_q=10.0.2.4")
+	mustContain(t, body, `value="10.0.2.4"`, "10 of 250 bans match")
+
+	// Without JavaScript the endpoint redirects to the page.
+	resp, _ = e.get("/peers/bans?ban_q=x&after=10.0.0.99")
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/peers?ban_q=x&ban_after=10.0.0.99" {
+		t.Fatalf("no-JS: %d %s", resp.StatusCode, resp.Header.Get("Location"))
+	}
+}

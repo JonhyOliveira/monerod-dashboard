@@ -5,7 +5,7 @@ A dashboard for the monero daemon. Exposes some of the information available thr
 A single Go binary (standard library only, plus a bundled copy of [htmx](https://htmx.org)) that talks to [`monerod`](https://github.com/monero-project/monero)'s RPC and serves a web interface to watch **and manage** your node:
 
 - **Overview:** sync state, peers, chain, mempool, storage, uptime, traffic, fees, consensus, with warnings for common failures (unreachable, no peers, low disk, stale tip, update available)
-- **Peers:** live connections, ban/unban hosts and subnets, connection limits, white/gray peer lists, public RPC nodes
+- **Peers:** live connections, ban/unban hosts and subnets (searchable, paged ban list), connection limits, white/gray peer lists, public RPC nodes
 - **Network:** bandwidth limits (set / reset), traffic totals and averages, sync peers and download spans
 - **Mempool:** stats, age histogram, fee rates, transactions; relay or remove selected transactions, flush the pool
 - **Blocks:** block list, block and transaction detail (decoded JSON, raw hex), search by height or hash, alternative chains
@@ -127,7 +127,7 @@ Not covered: the binary `.bin` endpoints (`get_blocks.bin` and friends). They ex
 
 ## Limits
 
-Long lists are loaded in batches, not truncated: the mempool table and the peer lists show their first 100 rows, and the next 100 load as you scroll to the end. Batches come from the same cached snapshot (monerod can't page these lists itself), so rows don't repeat or go missing while you scroll. While extra rows are shown, the live refresh pauses; click the ring to refresh.
+Long lists are loaded in batches, not truncated: the mempool table, the peer lists and the ban list show their first 100 rows, and the next 100 load as you scroll to the end. Batches come from the same cached snapshot (monerod can't page these lists itself), so rows don't repeat or go missing while you scroll. While extra rows are shown, the live refresh pauses; click the ring to refresh.
 
 Other deliberate limits:
 

@@ -17,6 +17,7 @@ func (s *Server) routePages(mux *http.ServeMux) {
 	mux.HandleFunc("GET /{$}", s.pageOverview)
 	mux.HandleFunc("GET /peers", s.pagePeers)
 	mux.HandleFunc("GET /peers/rows", s.peerRows)
+	mux.HandleFunc("GET /peers/bans", s.banRowsHandler)
 	mux.HandleFunc("GET /network", s.pageNetwork)
 	mux.HandleFunc("GET /mempool", s.pageMempool)
 	mux.HandleFunc("GET /mempool/rows", s.mempoolRows)
@@ -65,6 +66,7 @@ type peersData struct {
 	Bans        result[[]rpc.Ban]
 	PeerList    result[*rpc.PeerList]
 	White, Gray rowsPage[rpc.Peer]
+	BanRows     banRows
 	Public      result[*rpc.PublicNodes]
 	OutLimit    uint32
 	InLimit     uint32
@@ -91,6 +93,15 @@ func (s *Server) pagePeers(w http.ResponseWriter, r *http.Request) {
 		d.Gray = peerPage("gray", d.PeerList.V.GrayList, q.Get("gray_after"))
 		// Opened from a "Next" link (no JavaScript): show that list expanded.
 		d.White.Extra, d.Gray.Extra = q.Has("white_after"), q.Has("gray_after")
+	}
+	if d.Bans.Err == nil {
+		q := r.URL.Query()
+		d.BanRows = banPage(d.Bans.V, q.Get("ban_q"), q.Get("ban_after"))
+		d.BanRows.Page.Extra = q.Has("ban_after")
+		if sess := sessionFrom(r); sess != nil {
+			d.BanRows.CSRF = sess.csrf
+		}
+		d.BanRows.Path = r.URL.RequestURI()
 	}
 	d.OutLimit, d.InLimit, d.LimitsErr = s.rpc.PeerLimits(ctx)
 	s.render(w, r, "peers", view{Title: "Peers", Live: true, Data: d})

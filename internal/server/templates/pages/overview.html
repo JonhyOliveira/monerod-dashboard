@@ -11,7 +11,7 @@
 <section class="grid{{if or (not $o.OK) $o.Stale}} stale{{end}}">
   <article class="card wide" id="card-sync">
     <h2>Sync</h2>
-    <div class="state"><span class="dot {{$o.StateClass}}"></span><span id="state-label">{{if $o.BehindShort}}Syncing (<span class="humanized" title="{{$o.BehindExact}} blocks behind">{{$o.BehindShort}}</span> blocks behind){{else}}{{$o.StateLabel}}{{end}}</span></div>
+    <div class="state"><span class="dot {{$o.StateClass}}"></span><span id="state-label">{{if $o.BehindShort}}Syncing (<span class="humanized" title="{{$o.BehindShort}} blocks behind">{{$o.BehindExact}}</span> blocks behind){{else}}{{$o.StateLabel}}{{end}}</span></div>
     <div class="bar"><div class="fill {{$o.SyncBarClass}}" style="{{$o.SyncBarStyle}}"></div></div>
     <dl>
       <div><dt>Height</dt><dd id="height">{{$o.Height}}</dd></div>

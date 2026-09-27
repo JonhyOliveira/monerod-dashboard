@@ -623,5 +623,5 @@ func TestBlocksBehindTooltip(t *testing.T) {
 	})
 	e.login()
 	_, body := e.get("/")
-	mustContain(t, body, `Syncing (<span class="humanized" title="835,417 blocks behind">835.4k</span> blocks behind)`)
+	mustContain(t, body, `Syncing (<span class="humanized" title="835.4k blocks behind">835,417</span> blocks behind)`)
 }

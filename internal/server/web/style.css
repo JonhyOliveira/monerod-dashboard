@@ -186,7 +186,11 @@ dd.big { font-size: 26px; font-weight: 600; }
 .search input { width: 100%; }
 .logout { margin: 0; }
 
+/* The section tabs stay pinned to the top while the page scrolls. */
 .tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   gap: 2px;
   padding: 0 16px;

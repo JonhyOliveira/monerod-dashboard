@@ -79,9 +79,10 @@
 <div class="scroll">
 <table class="table">
   <thead><tr><th>Host</th><th class="num">Port</th><th class="num">RPC port</th><th class="num">Pruning seed</th><th>Last seen</th></tr></thead>
-  <tbody>{{range .}}<tr><td class="mono">{{.Host}}</td><td class="num">{{.Port}}</td><td class="num">{{if .RPCPort}}{{.RPCPort}}{{else}}—{{end}}</td><td class="num">{{.PruningSeed}}</td><td>{{ago .LastSeen}}</td></tr>{{end}}</tbody>
+  <tbody>{{range firstN 250 .}}<tr><td class="mono">{{.Host}}</td><td class="num">{{.Port}}</td><td class="num">{{if .RPCPort}}{{.RPCPort}}{{else}}—{{end}}</td><td class="num">{{.PruningSeed}}</td><td>{{ago .LastSeen}}</td></tr>{{end}}</tbody>
 </table>
 </div>
+{{with more 250 .}}<p class="muted small">…and {{int .}} more not shown.</p>{{end}}
 {{else}}<p class="muted">Empty.</p>{{end}}
 {{end}}
 

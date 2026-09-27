@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"path"
+	"reflect"
 	"strconv"
 	"strings"
 	"syscall"
@@ -136,7 +137,10 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, page string, v v
 // header fetches the node identity shown in the header.
 func (s *Server) header(r *http.Request) headerView {
 	h := headerView{Updated: s.now()}
-	info, err := s.rpc.GetInfo(r.Context())
+	info, at, err := s.rpc.GetInfoAt(r.Context())
+	if !at.IsZero() {
+		h.Updated = at // when the data was fetched, not when the page was drawn
+	}
 	if err != nil {
 		return h
 	}
@@ -201,6 +205,15 @@ var funcs = template.FuncMap{
 			return "yes"
 		}
 		return "no"
+	},
+	// firstN caps a list for display; more reports how many were cut.
+	"firstN": func(n int, list any) any { return firstN(n, list) },
+	"more": func(n int, list any) int {
+		l := reflect.ValueOf(list)
+		if l.Kind() != reflect.Slice {
+			return 0
+		}
+		return max(0, l.Len()-n)
 	},
 	"seq": func(n int) []int {
 		out := make([]int, n)
@@ -297,6 +310,14 @@ func fmtPct(a, b float64) string {
 		return dash
 	}
 	return toFixed(a/b*100, 1) + "%"
+}
+
+func firstN(n int, list any) any {
+	l := reflect.ValueOf(list)
+	if l.Kind() != reflect.Slice || l.Len() <= n {
+		return list
+	}
+	return l.Slice(0, n).Interface()
 }
 
 // barHeight is barWidth for vertical bars.

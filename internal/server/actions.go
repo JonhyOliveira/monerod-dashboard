@@ -102,6 +102,8 @@ func (s *Server) runAction(name string, fn action) http.HandlerFunc {
 			return
 		}
 		msg, err := fn(r.Context(), form{r})
+		// Whatever the action changed, the next reads should show it.
+		s.rpc.Invalidate()
 		level := "ok"
 		if err != nil {
 			level = "error"

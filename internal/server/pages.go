@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -76,7 +77,10 @@ func (s *Server) pagePeers(w http.ResponseWriter, r *http.Request) {
 		Public:      try(s.rpc.GetPublicNodes(ctx)),
 	}
 	if d.Connections.Err == nil {
-		sort.SliceStable(d.Connections.V, func(i, j int) bool { return d.Connections.V[i].LiveTime > d.Connections.V[j].LiveTime })
+		// Results come from the shared cache: sort a copy.
+		conns := slices.Clone(d.Connections.V)
+		sort.SliceStable(conns, func(i, j int) bool { return conns[i].LiveTime > conns[j].LiveTime })
+		d.Connections.V = conns
 	}
 	d.OutLimit, d.InLimit, d.LimitsErr = s.rpc.PeerLimits(ctx)
 	s.render(w, r, "peers", view{Title: "Peers", Live: true, Data: d})
@@ -129,9 +133,13 @@ func (s *Server) pageMempool(w http.ResponseWriter, r *http.Request) {
 		Backlog: try(s.rpc.GetTxpoolBacklog(ctx)),
 	}
 	if d.Pool.Err == nil {
-		sort.SliceStable(d.Pool.V.Transactions, func(i, j int) bool {
-			return d.Pool.V.Transactions[i].ReceiveTime > d.Pool.V.Transactions[j].ReceiveTime
+		// Results come from the shared cache: sort a copy.
+		pool := *d.Pool.V
+		pool.Transactions = slices.Clone(pool.Transactions)
+		sort.SliceStable(pool.Transactions, func(i, j int) bool {
+			return pool.Transactions[i].ReceiveTime > pool.Transactions[j].ReceiveTime
 		})
+		d.Pool.V = &pool
 	}
 	if d.Backlog.Err == nil && len(d.Backlog.V) > 0 {
 		rates := make([]uint64, 0, len(d.Backlog.V))
@@ -191,10 +199,10 @@ func (s *Server) pageBlocks(w http.ResponseWriter, r *http.Request) {
 	}
 	d.Headers = try(s.rpc.GetBlockHeadersRange(ctx, begin, end))
 	if d.Headers.Err == nil {
-		hs := d.Headers.V
-		for i, j := 0, len(hs)-1; i < j; i, j = i+1, j-1 {
-			hs[i], hs[j] = hs[j], hs[i]
-		}
+		// Newest first; reverse a copy of the shared cached slice.
+		hs := slices.Clone(d.Headers.V)
+		slices.Reverse(hs)
+		d.Headers.V = hs
 	}
 	if d.Start < top {
 		d.Newer = int64(min(top, d.Start+blocksPerPage))

@@ -211,6 +211,7 @@ func (s *Server) pageTools(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		d.SendRaw, d.Err = s.rpc.SendRawTransaction(ctx, txHex, get("do_not_relay") != "", get("do_sanity_checks") != "")
+		s.rpc.Invalidate()
 		log.Printf("action=send_raw_transaction ip=%s bytes=%d err=%v", clientIP(r), len(txHex)/2, d.Err)
 	default:
 		d.Err = fmt.Errorf("unknown tool %q", d.Op)
@@ -273,6 +274,8 @@ func (s *Server) pageConsole(w http.ResponseWriter, r *http.Request) {
 		default:
 			var raw []byte
 			raw, d.Err = s.rpc.Raw(r.Context(), d.Endpoint, d.Method, json.RawMessage(d.Params))
+			// The request may have changed anything.
+			s.rpc.Invalidate()
 			d.Response = prettyRaw(raw)
 		}
 		log.Printf("action=console ip=%s endpoint=%s method=%s err=%v", clientIP(r), d.Endpoint, d.Method, d.Err)

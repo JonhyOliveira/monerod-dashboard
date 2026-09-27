@@ -79,7 +79,7 @@
         <th>Hash</th><th class="num">Fee</th><th class="num">Weight</th><th class="num">Fee rate</th><th>Received</th><th>Status</th>
       </tr></thead>
       <tbody>
-      {{range .V.Transactions}}
+      {{range firstN 500 .V.Transactions}}
         <tr>
           <td><input type="checkbox" name="txid" value="{{.IDHash}}" aria-label="Select {{.IDHash}}"></td>
           <td class="mono"><a href="/tx/{{.IDHash}}">{{short .IDHash}}</a></td>
@@ -99,6 +99,7 @@
       </tbody>
     </table>
     </div>
+    {{with more 500 .V.Transactions}}<p class="muted small">Showing the 500 newest; {{int .}} older transactions not listed.</p>{{end}}
     <div class="row">
       <button type="submit" class="danger" data-confirm="Remove the selected transactions from the pool?">Remove selected</button>
       <button type="submit" formaction="/actions/relay_tx" class="secondary">Relay selected</button>

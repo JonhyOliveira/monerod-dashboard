@@ -28,16 +28,17 @@ type Config struct {
 
 // Server serves the dashboard for one daemon.
 type Server struct {
-	rpc     *rpc.Client
+	rpc     *rpc.Node
 	refresh time.Duration
 	auth    *auth
 	pages   *pageSet
 	now     func() time.Time
 }
 
-// New returns a Server.
-func New(client *rpc.Client, cfg Config) *Server {
-	s := &Server{rpc: client, refresh: cfg.Refresh, now: time.Now}
+// New returns a Server. Reads go through node's cache; run node.Run
+// alongside so it stays fresh.
+func New(node *rpc.Node, cfg Config) *Server {
+	s := &Server{rpc: node, refresh: cfg.Refresh, now: time.Now}
 	if s.refresh <= 0 {
 		s.refresh = 5 * time.Second
 	}

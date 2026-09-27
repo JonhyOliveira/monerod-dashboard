@@ -25,7 +25,8 @@ func main() {
 		rpcUser      = flag.String("rpc-user", os.Getenv("MONEROD_RPC_USER"), "RPC username for digest auth (env MONEROD_RPC_USER)")
 		rpcPass      = flag.String("rpc-pass", os.Getenv("MONEROD_RPC_PASS"), "RPC password for digest auth (env MONEROD_RPC_PASS)")
 		listen       = flag.String("listen", envOr("DASHBOARD_LISTEN", "127.0.0.1:8080"), "HTTP listen address (env DASHBOARD_LISTEN)")
-		refresh      = flag.Duration("refresh", 5*time.Second, "refresh interval of live page sections")
+		refresh      = flag.Duration("refresh", 5*time.Second, "refresh interval of live data (pages and the background cache)")
+		slowRefresh  = flag.Duration("slow-refresh", time.Minute, "refresh interval of slow-changing data (peer lists, consensus, fees)")
 		rpcTimeout   = flag.Duration("rpc-timeout", 30*time.Second, "timeout for each RPC request (some management calls are slow)")
 		password     = flag.String("admin-password", os.Getenv("DASHBOARD_ADMIN_PASSWORD"), "password for the dashboard login (env DASHBOARD_ADMIN_PASSWORD)")
 		passwordFile = flag.String("admin-password-file", os.Getenv("DASHBOARD_ADMIN_PASSWORD_FILE"), "file holding the dashboard password, e.g. a Docker secret (env DASHBOARD_ADMIN_PASSWORD_FILE)")
@@ -45,15 +46,21 @@ func main() {
 		log.Print("WARNING: login disabled (-insecure-no-auth); anyone who can reach the dashboard can manage the node")
 	}
 
-	client := rpc.New(rpc.Options{URL: *rpcURL, User: *rpcUser, Pass: *rpcPass, Timeout: *rpcTimeout})
-	srv := &http.Server{
-		Addr:              *listen,
-		Handler:           server.New(client, server.Config{Refresh: *refresh, Password: pw, NoAuth: *noAuth}).Handler(),
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Pages are served from a cache that this loop keeps fresh, so they
+	// don't wait on monerod.
+	client := rpc.New(rpc.Options{URL: *rpcURL, User: *rpcUser, Pass: *rpcPass, Timeout: *rpcTimeout})
+	node := rpc.NewNode(client, *refresh, *slowRefresh)
+	go node.Run(ctx)
+	go node.Warm(ctx)
+
+	srv := &http.Server{
+		Addr:              *listen,
+		Handler:           server.New(node, server.Config{Refresh: *refresh, Password: pw, NoAuth: *noAuth}).Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 
 	go func() {
 		log.Printf("monerod-dashboard listening on http://%s (daemon %s)", *listen, *rpcURL)

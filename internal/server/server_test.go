@@ -34,12 +34,22 @@ type env struct {
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	d := rpctest.New(t)
-	s := New(rpc.New(rpc.Options{URL: d.URL}), Config{Refresh: 5 * time.Second, Password: testPassword})
+	s := New(testNode(t, d), Config{Refresh: 5 * time.Second, Password: testPassword})
 	h := httptest.NewServer(s.Handler())
 	t.Cleanup(h.Close)
 	jar, _ := cookiejar.New(nil)
 	c := &http.Client{Jar: jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	return &env{t: t, daemon: d, srv: s, http: h, client: c}
+}
+
+// testNode is a cached node refreshing quickly, with its loop running for
+// the duration of the test.
+func testNode(t *testing.T, d *rpctest.Daemon) *rpc.Node {
+	n := rpc.NewNode(rpc.New(rpc.Options{URL: d.URL}), 50*time.Millisecond, 50*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go n.Run(ctx)
+	return n
 }
 
 func (e *env) do(req *http.Request) (*http.Response, string) {
@@ -240,7 +250,7 @@ func TestCSRF(t *testing.T) {
 
 func TestNoAuthMode(t *testing.T) {
 	d := rpctest.New(t)
-	s := New(rpc.New(rpc.Options{URL: d.URL}), Config{NoAuth: true})
+	s := New(testNode(t, d), Config{NoAuth: true})
 	h := httptest.NewServer(s.Handler())
 	defer h.Close()
 	resp, err := http.Get(h.URL + "/peers")
@@ -350,7 +360,14 @@ func TestUnreachableDaemon(t *testing.T) {
 	e := newEnv(t)
 	e.login()
 	e.daemon.Close()
-	resp, body := e.get("/")
+	// The cache still holds the last good answer until the next refresh.
+	var resp *http.Response
+	var body string
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if resp, body = e.get("/"); strings.Contains(body, "Unreachable") {
+			break
+		}
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status %d", resp.StatusCode)
 	}
@@ -524,5 +541,32 @@ func TestAuthSweep(t *testing.T) {
 	a.newSession() // sweeps
 	if len(a.sessions) != 1 || len(a.failures) != 0 {
 		t.Fatalf("after sweep: %d sessions, %d failure records", len(a.sessions), len(a.failures))
+	}
+}
+
+// Pages are served from the cache: repeated loads don't hit the daemon,
+// and an action makes the next load fetch fresh data.
+func TestPagesServedFromCache(t *testing.T) {
+	d := rpctest.New(t)
+	n := rpc.NewNode(rpc.New(rpc.Options{URL: d.URL}), time.Hour, time.Hour) // no background refreshes during the test
+	s := New(n, Config{Password: testPassword})
+	h := httptest.NewServer(s.Handler())
+	defer h.Close()
+	jar, _ := cookiejar.New(nil)
+	e := &env{t: t, daemon: d, srv: s, http: h, client: &http.Client{Jar: jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+	e.login()
+
+	e.get("/peers")
+	before := len(d.Calls("get_connections"))
+	for i := 0; i < 5; i++ {
+		e.get("/peers")
+	}
+	if got := len(d.Calls("get_connections")); got != before {
+		t.Fatalf("get_connections called %d more times; want 0 (cached)", got-before)
+	}
+	e.action("ban", url.Values{"host": {"1.2.3.4"}, "seconds": {"60"}})
+	e.get("/peers")
+	if got := len(d.Calls("get_bans")); got < 2 {
+		t.Fatalf("get_bans not refetched after an action (%d calls)", got)
 	}
 }

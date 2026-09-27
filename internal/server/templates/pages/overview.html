@@ -65,6 +65,7 @@
       <div><dt>Free space</dt><dd id="free-space">{{$o.FreeSpace}}</dd></div>
     </dl>
     <div class="bar"><div class="fill {{$o.DiskBarClass}}" style="{{$o.DiskBarStyle}}"></div></div>
+    {{if $o.DiskUsedPct}}<p class="muted small">The blockchain uses {{$o.DiskUsedPct}} of the space available to it (database + free space).</p>{{end}}
   </article>
 
   <article class="card">

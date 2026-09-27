@@ -168,10 +168,7 @@ func (s *Server) header(r *http.Request) headerView {
 		if stale, err := f.Stale(); stale && h.OK {
 			age := s.now().Sub(h.Updated)
 			h.Stale, h.Age = true, fmtDuration(int64(max(age, 0).Seconds()))
-			h.Why = "Refreshes from monerod are running late."
-			if err != nil {
-				h.Why = "monerod is not answering: " + errMessage(err)
-			}
+			h.Why = staleReason(err)
 		}
 	}
 	return h

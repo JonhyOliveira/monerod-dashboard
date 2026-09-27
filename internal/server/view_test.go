@@ -59,6 +59,10 @@ func TestFormatters(t *testing.T) {
 		95:     "1m 35s",
 		3600:   "1h 0m",
 		277200: "3d 5h",
+		// Over a year: years and days.
+		365 * 86400:          "1y 0d",
+		366 * 86400:          "1y 1d",
+		1561*86400 + 18*3600: "4y 101d",
 	}
 	for in, want := range durCases {
 		if got := fmtDuration(in); got != want {

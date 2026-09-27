@@ -278,7 +278,7 @@ func TestPagesRenderFixtureData(t *testing.T) {
 	e := newEnv(t)
 	e.login()
 	pages := map[string][]string{
-		"/":            {"Synchronized", `<dd id="height">131</dd>`, "fakechain", "v0.18.3.1-unknown", "Votes"},
+		"/":            {"Synchronized", `<dd id="height">131</dd>`, "fakechain", "v0.18.3.1-unknown", "Votes", "of the space available to it"},
 		"/peers":       {"127.0.0.1:38090", "10.9.8.7", "192.168.50.0/24", "Unban", "unlimited incoming"},
 		"/network":     {"8,192", "2,048", "Synchronisation", "127.0.0.1:55448"},
 		"/mempool":     {"f7e227d5…8ce43980", "0.0026052 XMR", "Remove selected", "1,202,770 pXMR/B"},
@@ -606,5 +606,12 @@ func TestPagesServedFromCache(t *testing.T) {
 	e.get("/peers")
 	if got := len(d.Calls("get_bans")); got < 2 {
 		t.Fatalf("get_bans not refetched after an action (%d calls)", got)
+	}
+}
+
+func TestStaleReasonBusy(t *testing.T) {
+	got := staleReason(&rpc.StatusError{Method: "get_fee_estimate", Status: "BUSY"})
+	if !strings.Contains(got, "busy") || strings.Contains(got, "not answering") {
+		t.Errorf("BUSY reason = %q", got)
 	}
 }

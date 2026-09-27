@@ -5,6 +5,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"log"
 	"net/http"
@@ -191,13 +192,21 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 func staleWarning(age time.Duration, err error) status.Warning {
-	msg := "Showing data from " + fmtDuration(int64(age.Seconds())) + " ago: "
-	if err != nil {
-		msg += "monerod is not answering. " + errMessage(err)
-	} else {
-		msg += "refreshes from monerod are running late."
+	return status.Warning{Level: "error", Code: "stale",
+		Message: "Showing data from " + fmtDuration(int64(age.Seconds())) + " ago: " + staleReason(err)}
+}
+
+// staleReason explains why cached data could not be refreshed.
+func staleReason(err error) string {
+	var se *rpc.StatusError
+	switch {
+	case err == nil:
+		return "refreshes from monerod are running late."
+	case errors.As(err, &se) && se.Status == "BUSY":
+		// monerod answers some calls with BUSY while it syncs.
+		return "monerod is busy (it answers some requests with BUSY while syncing)."
 	}
-	return status.Warning{Level: "error", Code: "stale", Message: msg}
+	return "monerod is not answering. " + errMessage(err)
 }
 
 // safeNext only allows local paths as a post-login redirect target.

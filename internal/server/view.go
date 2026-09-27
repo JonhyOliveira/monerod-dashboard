@@ -44,6 +44,7 @@ type overview struct {
 	FreeSpace    string
 	DiskBarClass string
 	DiskBarStyle template.CSS
+	DiskUsedPct  string // share of (database + free space) the database takes
 
 	Uptime    string
 	StartTime int64
@@ -102,6 +103,7 @@ func newOverview(s StatusResponse) overview {
 		// Share of (db + free) in use; a rough proxy for headroom.
 		used := 100 - float64(n.FreeSpace)/float64(n.FreeSpace+n.DatabaseSize)*100
 		p.DiskBarStyle = template.CSS("width: " + strconv.FormatFloat(used, 'f', -1, 64) + "%")
+		p.DiskUsedPct = toFixed(used, 1) + "%"
 		p.DiskBarClass = "ok"
 		for _, w := range s.Warnings {
 			if w.Code == "low_disk" {
@@ -155,8 +157,10 @@ func fmtHashrate(h float64) string {
 }
 
 func fmtDuration(s int64) string {
-	d, h, m, sec := s/86400, s%86400/3600, s%3600/60, s%60
+	y, d, h, m, sec := s/(365*86400), s%(365*86400)/86400, s%86400/3600, s%3600/60, s%60
 	switch {
+	case y != 0:
+		return fmt.Sprintf("%dy %dd", y, d)
 	case d != 0:
 		return fmt.Sprintf("%dd %dh", d, h)
 	case h != 0:

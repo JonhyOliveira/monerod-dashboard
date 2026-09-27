@@ -66,7 +66,7 @@ start() {
   mkdir -p "$DIR/wallets"
   setsid monero-wallet-rpc --allow-mismatched-daemon-version --daemon-address 127.0.0.1:$A_RPC --trusted-daemon \
     --rpc-bind-ip 127.0.0.1 --rpc-bind-port $WALLET_RPC --disable-rpc-login \
-    --wallet-dir "$DIR/wallets" --log-level 0 > "$DIR/wallet.log" 2>&1 < /dev/null &
+    --wallet-dir "$DIR/wallets" --log-file "$DIR/wallet-rpc.log" --log-level 0 > "$DIR/wallet.log" 2>&1 < /dev/null &
   for _ in $(seq 1 60); do rpc $WALLET_RPC get_version >/dev/null 2>&1 && break; sleep 1; done
   rpc $WALLET_RPC open_wallet '{"filename":"dev"}' >/dev/null 2>&1 \
     || rpc $WALLET_RPC create_wallet '{"filename":"dev","language":"English"}' >/dev/null

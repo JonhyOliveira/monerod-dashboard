@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/jonhyoliveira/monerod-dashboard/internal/rpc"
+	"github.com/jonhyoliveira/monerod-dashboard/internal/xmr"
 )
 
 // ---- Tools ----
@@ -31,6 +33,14 @@ type toolsData struct {
 	PowHash   string
 	BlockHash string
 	SendRaw   *rpc.SendRawTxResult
+	Payment   *paymentCheck
+}
+
+// paymentCheck is the result of proving a payment with a transaction key.
+type paymentCheck struct {
+	Proof   *xmr.Proof
+	Address *xmr.Address
+	Tx      rpc.Transaction
 }
 
 type keyImageStatus struct {
@@ -213,6 +223,13 @@ func (s *Server) pageTools(w http.ResponseWriter, r *http.Request) {
 		d.SendRaw, d.Err = s.rpc.SendRawTransaction(ctx, txHex, get("do_not_relay") != "", get("do_sanity_checks") != "")
 		s.rpc.Invalidate()
 		log.Printf("action=send_raw_transaction ip=%s bytes=%d err=%v", clientIP(r), len(txHex)/2, d.Err)
+	case "prove_payment":
+		// POST only: the transaction key shouldn't end up in URLs and history.
+		if r.Method != http.MethodPost {
+			d.Err = errors.New("checking a payment needs a POST")
+			break
+		}
+		d.Payment, d.Err = s.provePayment(r.Context(), get("txid"), get("tx_key"), get("address"))
 	default:
 		d.Err = fmt.Errorf("unknown tool %q", d.Op)
 	}
@@ -290,4 +307,37 @@ func prettyRaw(raw []byte) string {
 	}
 	out, _ := json.MarshalIndent(v, "", "  ")
 	return string(out)
+}
+
+// provePayment checks which outputs of txid pay address, given the
+// sender's transaction key: what monero-wallet-rpc's check_tx_key does,
+// with the transaction fetched from monerod.
+func (s *Server) provePayment(ctx context.Context, txid, txKey, address string) (*paymentCheck, error) {
+	if !rpc.IsHash(txid) {
+		return nil, errors.New("transaction ID must be 64 hex characters")
+	}
+	addr, err := xmr.ParseAddress(address)
+	if err != nil {
+		return nil, err
+	}
+	if _, _, err := xmr.ParseTxKey(txKey); err != nil {
+		return nil, err
+	}
+	// Regtest ("fakechain") uses mainnet addresses.
+	if info, err := s.rpc.GetInfo(ctx); err == nil && info.Nettype != addr.Network &&
+		!(info.Nettype == "fakechain" && addr.Network == "mainnet") {
+		return nil, fmt.Errorf("that is a %s address, but this node is on %s", addr.Network, info.Nettype)
+	}
+	txs, missed, err := s.rpc.GetTransactions(ctx, []string{txid})
+	if err != nil {
+		return nil, err
+	}
+	if len(missed) > 0 || len(txs) == 0 {
+		return nil, errors.New("monerod doesn't know this transaction (not in its blockchain or pool)")
+	}
+	proof, err := xmr.CheckTxKey(txs[0].AsJSON, txKey, addr)
+	if err != nil {
+		return nil, err
+	}
+	return &paymentCheck{Proof: proof, Address: addr, Tx: txs[0]}, nil
 }

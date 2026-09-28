@@ -4,6 +4,7 @@
 <section class="card">
   <h2>Transaction {{if $s.Coinbase}}<span class="tag">coinbase</span>{{end}}{{if .InPool}}<span class="tag warn">in pool</span>{{end}}</h2>
   <p class="hash mono">{{.TxHash}}</p>
+  <p class="small"><a href="/tools?txid={{.TxHash}}#tool-prove">Prove a payment in this transaction</a></p>
   <dl class="cols">
     {{if .InPool}}
     <div><dt>Status</dt><dd>Waiting in the pool{{if .Relayed}}, relayed{{else}}, not relayed{{end}}</dd></div>

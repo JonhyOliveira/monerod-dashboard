@@ -4,6 +4,40 @@
      result is swapped into the tool's card; without it the page reloads. */}}
 
 <section class="grid forms">
+  <article class="card" id="tool-prove">
+    <h2>Prove a payment</h2>
+    <p class="muted small">Check that a transaction paid an address, and how much, with the sender's transaction key (from the wallet: <code>get_tx_key</code>, or "Prove payment" in the GUI). Nothing is broadcast; the key stays on this server.</p>
+    <form method="post" action="/tools" class="stack" hx-post="/tools" hx-select="#tool-prove" hx-target="#tool-prove" hx-swap="outerHTML">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="op" value="prove_payment">
+      <label>Transaction ID <input name="txid" required class="mono" value="{{call $f "txid"}}" autocomplete="off" spellcheck="false" pattern="[0-9a-fA-F]{64}"></label>
+      <label>Transaction key <input name="tx_key" required class="mono" value="{{if eq $d.Op "prove_payment"}}{{call $f "tx_key"}}{{end}}" autocomplete="off" spellcheck="false"></label>
+      <label>Recipient address <input name="address" required class="mono" value="{{call $f "address"}}" autocomplete="off" spellcheck="false"></label>
+      <button type="submit">Check</button>
+    </form>
+    {{if eq $d.Op "prove_payment"}}{{if $d.Err}}{{template "err" $d.Err}}{{end}}{{with $d.Payment}}{{$p := .Proof}}
+      {{if $p.Outputs}}
+      <p class="notice ok">This transaction pays this {{if .Address.Subaddress}}subaddress{{else}}{{.Address.Kind}} address{{end}} <strong>{{xmr $p.Total}}</strong>{{if gt (len $p.Outputs) 1}} in {{len $p.Outputs}} outputs{{end}}.</p>
+      {{else if $p.KeyMatches}}
+      <p class="notice error">Nothing in this transaction pays this address.</p>
+      {{else}}
+      <p class="notice error">Nothing in this transaction pays this address. The key doesn't match the transaction either, so it may be another transaction's key.</p>
+      {{end}}
+      <dl class="cols">
+        <div><dt>Status</dt><dd>{{with .Tx}}{{if .InPool}}In the pool, not yet confirmed{{else}}Confirmed in block <a href="/block/{{.BlockHeight}}">{{int .BlockHeight}}</a> ({{int .Confirmations}} confirmations){{end}}{{if .DoubleSpendSeen}} <span class="tag err">double spend seen</span>{{end}}{{end}}</dd></div>
+        {{if $p.PaymentID}}<div><dt>Payment ID</dt><dd class="mono">{{$p.PaymentID}}</dd></div>{{end}}
+      </dl>
+      {{if $p.Outputs}}
+      <div class="scroll"><table class="table">
+        <thead><tr><th class="num">Output</th><th class="num">Amount</th><th>One-time key</th></tr></thead>
+        <tbody>{{range $p.Outputs}}<tr><td class="num">{{.Index}}</td><td class="num">{{if .AmountKnown}}{{xmr .Amount}}{{else}}<span class="muted" title="Amounts in RingCT transactions from before October 2018 aren't decoded.">unknown</span>{{end}}</td><td class="mono">{{short .Key}}</td></tr>{{end}}</tbody>
+      </table></div>
+      <p class="muted small">Each amount was checked against the output's commitment on the blockchain.</p>
+      {{end}}
+      <p class="muted small"><a href="/tx/{{.Tx.TxHash}}">View the transaction</a></p>
+    {{end}}{{end}}
+  </article>
+
   <article class="card" id="tool-send">
     <h2>Broadcast a transaction</h2>
     <form method="post" action="/tools" class="stack" hx-post="/tools" hx-select="#tool-send" hx-target="#tool-send" hx-swap="outerHTML">
